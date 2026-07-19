@@ -9,6 +9,13 @@ repo. Every claim below points at either a real file in this repo or a
 real external doc, so you can go verify or copy directly rather than
 taking it on faith.
 
+Companion piece: [`tetron-systray`'s own
+HOWTO](https://github.com/ErikAllanKincaid/tetron-systray/blob/main/docs/HOWTO_Build_A_Systray.md)
+covers the same daemon from a menu-bar/tray angle instead — the IPC client
+pattern and per-user-service deployment sections overlap heavily with this
+one; read whichever matches what you're building, or both if you want the
+full picture.
+
 ## The pattern, in one diagram
 
 ```
