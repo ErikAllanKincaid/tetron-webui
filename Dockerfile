@@ -10,10 +10,10 @@ RUN cargo build --release
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=build /build/target/release/tetron-web /usr/local/bin/tetron-web
+COPY --from=build /build/target/release/tetron-webui /usr/local/bin/tetron-webui
 
-# tetron-web talks to the daemon over its Unix socket -- mount that socket
+# tetron-webui talks to the daemon over its Unix socket -- mount that socket
 # into the container at the same path tetron itself uses, e.g.:
-#   docker run -p 127.0.0.1:7870:7870 -v /var/run/tetron:/var/run/tetron tetron-web
+#   docker run -p 127.0.0.1:7870:7870 -v /var/run/tetron:/var/run/tetron tetron-webui
 EXPOSE 7870
-ENTRYPOINT ["/usr/local/bin/tetron-web"]
+ENTRYPOINT ["/usr/local/bin/tetron-webui"]

@@ -1,4 +1,22 @@
-# tetron-web TODO
+# tetron-webui TODO
+
+- [x] **Rename project from `tetron-web` to `tetron-webui`**, 2026-07-19, to
+  follow the naming convention used by `TripoSG-WebUI` and the broader
+  "X-webui" pattern (`stable-diffusion-webui`, `text-generation-webui`).
+  Erik chose lowercase `tetron-webui` over `tetron-WebUI` (matches
+  Rust/Cargo package-naming convention and tetron's own lowercase binary
+  naming). Done: repo directory (`~/code/tetron-web` -> `~/code/tetron-webui`),
+  `Cargo.toml` (`[package] name`, `[[bin]] name`, `repository` URL),
+  `Dockerfile`, README title + self-references, `src/main.rs` doc comment +
+  startup log line, `static/app.js` comments + `localStorage` key, this
+  TODO's own header + the two repo-link bullets below, and the
+  `tetron-web`/`tetron-tray` mentions in the auto-memory file
+  `feedback_ui_addons_not_bound_by_cli_minimalism.md`. Deliberately left
+  untouched: `docs/PLAN.md` and `docs/IDEAS_WebUI_Systray.md`, both
+  explicitly frozen historical/provenance documents ("kept here verbatim,
+  mistake and all, rather than quietly edited") -- rewriting their
+  `tetron-web` references would falsify the record of what was actually
+  decided/built under that name at the time.
 
 - **Text selection breaks during polling.** Root cause: `render()` in
   `static/app.js` sets `container.innerHTML = ...` on every poll cycle
@@ -33,14 +51,14 @@
 
 - **Links to both GitHub repos.** Footer links to
   `https://github.com/ErikAllanKincaid/tetron` (already real) and
-  `https://github.com/ErikAllanKincaid/tetron-web` (doesn't exist yet --
-  this repo has never been pushed). Do the `tetron-web` link once that
+  `https://github.com/ErikAllanKincaid/tetron-webui` (doesn't exist yet --
+  this repo has never been pushed). Do the `tetron-webui` link once that
   repo is actually created and pushed.
 
 - **Link to download the binary.** For `tetron`: link to
   `https://github.com/ErikAllanKincaid/tetron/releases/latest` (already
   real, matches the download URL convention `tetron`'s own README/HOWTO
-  already use). For `tetron-web` itself: no CI/release pipeline exists
+  already use). For `tetron-webui` itself: no CI/release pipeline exists
   yet -- would need a `release.yml` built for this repo (matching
   `tetron`'s own, `.github/workflows/release.yml`) before there's
   anything real to link to. Separate, unscoped task.

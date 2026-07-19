@@ -1,14 +1,14 @@
 [package]
-name = "tetron-web"
+name = "tetron-webui"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
 license = "MPL-2.0"
 description = "Browser dashboard and admin console for tetron, over the daemon IPC socket"
-repository = "https://github.com/ErikAllanKincaid/tetron-web"
+repository = "https://github.com/ErikAllanKincaid/tetron-webui"
 
 [[bin]]
-name = "tetron-web"
+name = "tetron-webui"
 path = "src/main.rs"
 
 [dependencies]

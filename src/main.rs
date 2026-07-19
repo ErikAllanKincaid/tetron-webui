@@ -1,4 +1,4 @@
-//! `tetron-web`: a browser dashboard/admin console for the `tetron` daemon.
+//! `tetron-webui`: a browser dashboard/admin console for the `tetron` daemon.
 //! Genuinely optional and separate from tetron itself -- see README.md.
 //!
 //! Binds `127.0.0.1` only, deliberately: no remote/WAN exposure by default.
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/networks/{net_id}/nuke", post(api::nuke_network));
 
     let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
-    eprintln!("tetron-web listening on http://{BIND_ADDR}");
+    eprintln!("tetron-webui listening on http://{BIND_ADDR}");
     axum::serve(listener, app).await?;
     Ok(())
 }

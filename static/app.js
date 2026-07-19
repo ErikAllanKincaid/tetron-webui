@@ -1,4 +1,4 @@
-// tetron-web frontend. Vanilla JS on purpose -- no framework, no build
+// tetron-webui frontend. Vanilla JS on purpose -- no framework, no build
 // step, matches the "single page, don't pre-import a SPA framework you
 // don't need yet" decision this project's design settled on.
 
@@ -13,7 +13,7 @@
 // -----------------------------------------------------------------------
 
 function currentTheme() {
-  const saved = localStorage.getItem("tetron-web-theme");
+  const saved = localStorage.getItem("tetron-webui-theme");
   if (saved) return saved;
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
@@ -24,7 +24,7 @@ function applyTheme(theme) {
 
 function toggleTheme() {
   const next = currentTheme() === "dark" ? "light" : "dark";
-  localStorage.setItem("tetron-web-theme", next);
+  localStorage.setItem("tetron-webui-theme", next);
   applyTheme(next);
 }
 
@@ -35,7 +35,7 @@ document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
 // Small fetch helpers. Every mutating call goes through postJson, which
 // always resolves to the parsed body (even on a daemon-level rejection --
 // see api.rs's doc comment on why those are still HTTP 200) and only
-// rejects on an actual network-level failure (tetron-web itself
+// rejects on an actual network-level failure (tetron-webui itself
 // unreachable, which basically never happens since you're talking to it
 // right now, but worth not pretending can't fail).
 // -----------------------------------------------------------------------
@@ -93,7 +93,7 @@ function confirmAction(title, body, onConfirm) {
 // -----------------------------------------------------------------------
 // Status polling (Phase 1). This is also the entire "reconnect after a
 // daemon restart" story: every poll independently reconnects via
-// tetron-web's own backend, so there is no persistent connection on this
+// tetron-webui's own backend, so there is no persistent connection on this
 // side to go stale -- a poll just fails once, then succeeds again once the
 // daemon's socket reappears.
 // -----------------------------------------------------------------------
