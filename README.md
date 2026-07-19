@@ -6,8 +6,7 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ## Running it
 
-**Primary path: download a pre-built binary, no Rust toolchain needed.**
-Most people running this don't have (and shouldn't need) `cargo` installed.
+**Primary path: download a pre-built binary.**
 
 ```bash
 # Linux x86_64 -- see the releases page for aarch64 / macOS binaries:
