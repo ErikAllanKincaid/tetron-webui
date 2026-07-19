@@ -46,12 +46,14 @@ Browser --HTTP (127.0.0.1 only)--> tetron-webui --msgpack/Unix socket--> tetron 
 
 No daemon-side changes. Depends on `tetron-proto` (tetron's shared wire-protocol crate) as a git dependency, floating on `main` rather than pinned to a release tag — see the comment in `Cargo.toml` for why.
 
-## Design history
+## Building your own version of this
 
-- [`docs/DESIGN.md`](docs/DESIGN.md) — the UI/UX decisions (information hierarchy, theming, layout, confirmation UX) and the reasoning behind each.
-- [`docs/PLAN.md`](docs/PLAN.md) — the implementation plan this was built from.
-- [`docs/IDEAS_WebUI_Systray.md`](docs/IDEAS_WebUI_Systray.md) — the original scoping doc for this and [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (still called `tetron-tray` in that frozen doc; the real repo now exists, v1 scaffold stage).
-- [`TODO.md`](TODO.md) — known rough edges and planned follow-ups.
+**[`docs/HOWTO_Build_A_WebUI.md`](docs/HOWTO_Build_A_WebUI.md)** — a generic,
+instructional writeup of the pattern this is built on (a thin HTTP server
+proxying a browser to a local daemon's IPC socket, with a static
+framework-free frontend), with real references and worked examples from
+this repo's own source. Useful if you're building something similar, not
+just historical context for this one project.
 
 ## License
 
