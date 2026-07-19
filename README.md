@@ -27,6 +27,13 @@ Browser --HTTP (127.0.0.1 only)--> tetron-web --msgpack/Unix socket--> tetron da
 
 No daemon-side changes. Depends on `tetron-proto` (tetron's shared wire-protocol crate) as a git dependency, floating on `main` rather than pinned to a release tag — see the comment in `Cargo.toml` for why.
 
+## Design history
+
+- [`docs/DESIGN.md`](docs/DESIGN.md) — the UI/UX decisions (information hierarchy, theming, layout, confirmation UX) and the reasoning behind each.
+- [`docs/PLAN.md`](docs/PLAN.md) — the implementation plan this was built from.
+- [`docs/IDEAS_WebUI_Systray.md`](docs/IDEAS_WebUI_Systray.md) — the original scoping doc for this and `tetron-tray` (not yet built).
+- [`TODO.md`](TODO.md) — known rough edges and planned follow-ups.
+
 ## License
 
 MPL-2.0, matching tetron itself.
