@@ -1,0 +1,12 @@
+[Unit]
+Description=tetron-webui browser dashboard
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/tetron-webui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

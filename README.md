@@ -12,6 +12,17 @@ cargo run
 
 Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
 
+### Running it persistently (per-user service)
+
+```bash
+cargo build --release
+sudo install target/release/tetron-webui /usr/local/bin/tetron-webui   # or anywhere on PATH
+tetron-webui install     # sets up + starts a per-user service, no sudo needed for this step
+tetron-webui uninstall   # stops and removes it
+```
+
+Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from, same pattern as `tetron install` itself — install the binary somewhere permanent first if you want the service to survive that binary being deleted. Verified end to end on real hardware (Linux): install, crash-recovery (`kill -9` the process, confirmed systemd restarts it within seconds), and uninstall all leave the machine clean.
+
 ## What it does
 
 - Live dashboard: which networks you're on, who's connected, traffic stats.

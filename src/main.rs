@@ -8,11 +8,30 @@
 
 mod api;
 mod ipc_client;
+mod service;
 
 use axum::routing::{delete, get, post};
 use axum::Router;
+use clap::{Parser, Subcommand};
 
 const BIND_ADDR: &str = "127.0.0.1:7870";
+
+#[derive(Parser)]
+#[command(name = "tetron-webui")]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Install and start the per-user service (systemd --user on Linux,
+    /// a launchd LaunchAgent on macOS) so tetron-webui runs at login
+    /// instead of needing a terminal kept open
+    Install,
+    /// Stop and remove the per-user service
+    Uninstall,
+}
 
 // Static frontend, embedded at compile time -- no file-serving dependency,
 // no build step, matches the "vanilla HTML/CSS/JS, not a SPA framework"
@@ -35,6 +54,13 @@ async fn serve_js() -> impl axum::response::IntoResponse {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+    match cli.command {
+        Some(Command::Install) => return service::install(),
+        Some(Command::Uninstall) => return service::uninstall(),
+        None => {}
+    }
+
     let app = Router::new()
         // Frontend
         .route("/", get(serve_index))
