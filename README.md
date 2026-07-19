@@ -6,22 +6,26 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ## Running it
 
-```bash
-cargo run
-```
-
-Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
-
-### Running it persistently (per-user service)
+Recommended: install it as a per-user service so it's always up, no terminal
+needed.
 
 ```bash
 cargo build --release
 sudo install target/release/tetron-webui /usr/local/bin/tetron-webui   # or anywhere on PATH
 tetron-webui install     # sets up + starts a per-user service, no sudo needed for this step
-tetron-webui uninstall   # stops and removes it
 ```
 
-Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from, same pattern as `tetron install` itself — install the binary somewhere permanent first if you want the service to survive that binary being deleted. Verified end to end on real hardware (Linux): install, crash-recovery (`kill -9` the process, confirmed systemd restarts it within seconds), and uninstall all leave the machine clean.
+Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from — install the binary somewhere permanent first (as above) if you want the service to survive that binary being deleted. `tetron-webui uninstall` stops and removes it. Verified end to end on real hardware (Linux): install, crash-recovery (`kill -9` the process, confirmed systemd restarts it within seconds), and uninstall all leave the machine clean. macOS LaunchAgent path is written but not yet live-tested.
+
+Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
+
+### Development / one-off runs
+
+```bash
+cargo run
+```
+
+Runs in the foreground, no install step — for iterating on the code, not day-to-day use.
 
 ## What it does
 
@@ -42,7 +46,7 @@ No daemon-side changes. Depends on `tetron-proto` (tetron's shared wire-protocol
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) — the UI/UX decisions (information hierarchy, theming, layout, confirmation UX) and the reasoning behind each.
 - [`docs/PLAN.md`](docs/PLAN.md) — the implementation plan this was built from.
-- [`docs/IDEAS_WebUI_Systray.md`](docs/IDEAS_WebUI_Systray.md) — the original scoping doc for this and `tetron-systray` (still called `tetron-tray` in that frozen doc; not yet built).
+- [`docs/IDEAS_WebUI_Systray.md`](docs/IDEAS_WebUI_Systray.md) — the original scoping doc for this and [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (still called `tetron-tray` in that frozen doc; the real repo now exists, v1 scaffold stage).
 - [`TODO.md`](TODO.md) — known rough edges and planned follow-ups.
 
 ## License
