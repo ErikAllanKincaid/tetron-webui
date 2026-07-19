@@ -6,26 +6,30 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ## Running it
 
-Recommended: install it as a per-user service so it's always up, no terminal
-needed.
+**Primary path: download a pre-built binary, no Rust toolchain needed.**
+Most people running this don't have (and shouldn't need) `cargo` installed.
 
 ```bash
-cargo build --release
-sudo install target/release/tetron-webui /usr/local/bin/tetron-webui   # or anywhere on PATH
+# Linux x86_64 -- see the releases page for aarch64 / macOS binaries:
+# https://github.com/ErikAllanKincaid/tetron-webui/releases/latest
+curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
+chmod +x tetron-webui
+sudo install tetron-webui /usr/local/bin/tetron-webui
+
 tetron-webui install     # sets up + starts a per-user service, no sudo needed for this step
 ```
 
-Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from — install the binary somewhere permanent first (as above) if you want the service to survive that binary being deleted. `tetron-webui uninstall` stops and removes it. Verified end to end on real hardware (Linux): install, crash-recovery (`kill -9` the process, confirmed systemd restarts it within seconds), and uninstall all leave the machine clean. macOS LaunchAgent path is written but not yet live-tested.
+Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from — install it somewhere permanent first (as above) if you want the service to survive that binary being deleted. `tetron-webui uninstall` stops and removes it. Verified end to end on real hardware (Linux): install, crash-recovery (`kill -9` the process, confirmed systemd restarts it within seconds), and uninstall all leave the machine clean. macOS LaunchAgent path is written but not yet live-tested.
 
 Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
 
-### Development / one-off runs
+### Building from source / development
 
 ```bash
-cargo run
+cargo build --release   # or: cargo run, for a foreground dev run
 ```
 
-Runs in the foreground, no install step — for iterating on the code, not day-to-day use.
+Only needed if you're changing the code, or a pre-built binary isn't published for your platform yet.
 
 ## What it does
 
