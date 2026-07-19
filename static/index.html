@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tetron</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Tier 1 ("glance"): sticky header, always visible even while scrolled
+       down through a long network list. This is the "is everything okay"
+       answer -- color does more of the work here than the text does. -->
+  <header id="header">
+    <div class="header-left">
+      <span id="status-dot" class="dot dot-unknown"></span>
+      <span id="status-text">connecting…</span>
+    </div>
+    <div class="header-right">
+      <span id="endpoint-info" class="muted mono"></span>
+      <button id="theme-toggle" class="icon-btn" title="Toggle light/dark" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <!-- Tier 2 ("scan") + Tier 3 ("dig in", expand-in-place per network row).
+       #networks is populated entirely by app.js from /api/status polling --
+       there is no fixed count of networks assumed anywhere here. -->
+  <main>
+    <section id="create-join-panel" class="panel">
+      <div class="panel-tabs">
+        <button class="tab-btn active" data-tab="create">Create network</button>
+        <button class="tab-btn" data-tab="join">Join network</button>
+      </div>
+
+      <form id="create-form" class="tab-panel" data-tab="create">
+        <label>Network name <input type="text" name="network_name" placeholder="(random if left blank)"></label>
+        <label>Your hostname <input type="text" name="hostname" placeholder="(defaults to your machine's hostname)"></label>
+        <label>Subnet override <input type="text" name="subnet" placeholder="e.g. 10.88.0.0/24 (optional)"></label>
+        <button type="submit">Create</button>
+        <p class="form-result"></p>
+      </form>
+
+      <form id="join-form" class="tab-panel hidden" data-tab="join">
+        <label>Invite code <input type="text" name="invite_code" required placeholder="paste the tetron join <code> value"></label>
+        <label>Local alias <input type="text" name="alias" placeholder="(optional, local display name only)"></label>
+        <label>Your hostname <input type="text" name="hostname" placeholder="(optional)"></label>
+        <button type="submit">Join</button>
+        <p class="form-result"></p>
+      </form>
+    </section>
+
+    <section id="networks"></section>
+
+    <p id="pending-networks" class="muted hidden"></p>
+  </main>
+
+  <footer id="footer" class="muted mono"></footer>
+
+  <!-- Confirmation modal, reused for every destructive action (leave-as-
+       sole-coordinator, kick, nuke). Never a bare browser confirm() -- those
+       are too easy to reflexively click through and don't carry enough
+       information about what's actually about to happen. -->
+  <div id="confirm-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="confirm-title"></h3>
+      <p id="confirm-body"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="btn-secondary">Cancel</button>
+        <button id="confirm-ok" class="btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

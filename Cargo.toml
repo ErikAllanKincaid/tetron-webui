@@ -1,0 +1,34 @@
+[package]
+name = "tetron-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+license = "MPL-2.0"
+description = "Browser dashboard and admin console for tetron, over the daemon IPC socket"
+repository = "https://github.com/ErikAllanKincaid/tetron-web"
+
+[[bin]]
+name = "tetron-web"
+path = "src/main.rs"
+
+[dependencies]
+# Floating on tetron's main branch, not a pinned tag: the actual runtime
+# compatibility risk is which *binaries* are running together, not what was
+# pinned at build time -- tetron-proto's wire types already use
+# #[serde(default)] consistently for exactly this reason. Pinning a tag would
+# only add tag-bump busywork with no real safety benefit.
+tetron-proto = { git = "https://github.com/ErikAllanKincaid/tetron" }
+# Needed directly for EndpointId (used decoding an invite code) -- version
+# must track tetron-proto's own pin so Cargo resolves both to the same
+# underlying type rather than two incompatible iroh versions.
+iroh = "1"
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+# Decodes an invite code (bs58(network_pubkey || secret)) client-side, same
+# as tetron's own CLI does in src/invite.rs -- that decode logic lives in the
+# main tetron crate (a binary, not meant to be depended on as a library), so
+# it's reimplemented here rather than pulled in.
+bs58 = "0.5"
