@@ -10,7 +10,7 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 cargo run
 ```
 
-Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron up`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
+Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
 
 ## What it does
 

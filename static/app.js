@@ -119,8 +119,8 @@ function setHeader(status) {
     return;
   }
   if (status.active) {
-    dot.classList.add("dot-up");
-    text.textContent = "tetron is up";
+    dot.classList.add("dot-active");
+    text.textContent = "tetron is active";
   } else {
     dot.classList.add("dot-standby");
     text.textContent = "tetron is on standby";
@@ -202,7 +202,7 @@ function renderNetworkRow(net, myShortId) {
       <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}</div>
       ${peerTable}
       <div class="action-row">
-        <button class="btn-small btn-secondary" data-action="${net.active ? "down" : "up"}" data-network="${net.name}">
+        <button class="btn-small btn-secondary" data-action="${net.active ? "standby" : "resume"}" data-network="${net.name}">
           ${net.active ? "standby this network" : "activate this network"}
         </button>
         <button class="btn-small" data-action="invite-create" data-network="${net.name}">mint invite</button>
@@ -272,13 +272,13 @@ document.getElementById("networks").addEventListener("click", async (e) => {
     return;
   }
 
-  if (action === "up") {
-    await postJson("/api/up", { network });
+  if (action === "resume") {
+    await postJson("/api/resume", { network });
     poll();
     return;
   }
-  if (action === "down") {
-    await postJson("/api/down", { network });
+  if (action === "standby") {
+    await postJson("/api/standby", { network });
     poll();
     return;
   }

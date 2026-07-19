@@ -19,7 +19,7 @@
   /* Semantic status colors -- used ONLY for status meaning, never
      decoration, and never reused for anything that isn't actually that
      status. Consistency here matters more than the exact shade. */
-  --status-up: #4caf50;
+  --status-active: #4caf50;
   --status-standby: #9a9fa8;
   --status-down: #e57373;
   --status-warn: #e0a94c;
@@ -37,7 +37,7 @@
   --border: #dcdfe3;
   --accent: #2f6fdb;
 
-  --status-up: #2e7d32;
+  --status-active: #2e7d32;
   --status-standby: #6b7078;
   --status-down: #c62828;
   --status-warn: #a06a12;
@@ -51,7 +51,7 @@
     --text-muted: #5a5f68;
     --border: #dcdfe3;
     --accent: #2f6fdb;
-    --status-up: #2e7d32;
+    --status-active: #2e7d32;
     --status-standby: #6b7078;
     --status-down: #c62828;
     --status-warn: #a06a12;
@@ -115,7 +115,7 @@ header#header {
   border-radius: 50%;
   display: inline-block;
 }
-.dot-up { background: var(--status-up); }
+.dot-active { background: var(--status-active); }
 .dot-standby { background: var(--status-standby); }
 .dot-down { background: var(--status-down); }
 .dot-unknown { background: var(--text-muted); }
@@ -191,7 +191,7 @@ button[type="submit"], .btn { background: var(--accent); color: #fff; }
 .btn-small { padding: 4px 10px; font-size: 0.8rem; }
 
 .form-result { font-size: 0.85rem; margin: 0; }
-.form-result.success { color: var(--status-up); }
+.form-result.success { color: var(--status-active); }
 .form-result.error { color: var(--status-down); }
 
 /* ---------------------------------------------------------------------

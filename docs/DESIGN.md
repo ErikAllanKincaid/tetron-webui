@@ -24,7 +24,7 @@ Real HTML5 landmark elements (`<header>`, `<main>`, `<footer>`), not generic `<d
 
 ## Color: status encoding, not decoration
 
-In a dashboard, color's job is communicating state, not looking nice. This is the actual reason the tier-1 line works: the dot's color does more of the "is this okay" work than the words next to it. Pattern name: **semantic color** — the same idea behind git diffs, CI badges, traffic lights. Rule: 3–4 colors max for status meaning (`--status-up` green, `--status-standby` gray, `--status-down` red, `--status-warn` amber), never reused for anything that isn't actually that status. Consistency matters more than the exact shade chosen.
+In a dashboard, color's job is communicating state, not looking nice. This is the actual reason the tier-1 line works: the dot's color does more of the "is this okay" work than the words next to it. Pattern name: **semantic color** — the same idea behind git diffs, CI badges, traffic lights. Rule: 3–4 colors max for status meaning (`--status-active` green, `--status-standby` gray, `--status-down` red, `--status-warn` amber), never reused for anything that isn't actually that status. Consistency matters more than the exact shade chosen.
 
 ## Typography
 
@@ -34,7 +34,7 @@ Monospace (`--mono`, via the `.mono` class) for anything tabular or identifier-l
 
 Dark chosen as the default because it's the strong convention for this exact tool category (Grafana, GitHub's dark mode, most Rust/Go ops dashboards) and because saturated status colors visually pop more against a dark background than a light one — directly amplifying the tier-1 signal.
 
-**The technique that makes "toggle-able, not dark-only" actually true:** every color is a named CSS custom property (`--bg`, `--text`, `--status-up`, etc.), referenced by name everywhere else in the stylesheet, never a raw hex value inline. Light mode is a second value-set under `:root[data-theme="light"]` for the exact same names — there is only ever **one** design, expressed twice, so a dark-only assumption can't sneak in anywhere deep in the CSS; if something looks wrong in light mode, it's a wrong *value*, not a structural gap. The OS-level `prefers-color-scheme` is respected on first visit, before any explicit toggle click; the toggle itself just flips the `data-theme` attribute and persists the choice in `localStorage`.
+**The technique that makes "toggle-able, not dark-only" actually true:** every color is a named CSS custom property (`--bg`, `--text`, `--status-active`, etc.), referenced by name everywhere else in the stylesheet, never a raw hex value inline. Light mode is a second value-set under `:root[data-theme="light"]` for the exact same names — there is only ever **one** design, expressed twice, so a dark-only assumption can't sneak in anywhere deep in the CSS; if something looks wrong in light mode, it's a wrong *value*, not a structural gap. The OS-level `prefers-color-scheme` is respected on first visit, before any explicit toggle click; the toggle itself just flips the `data-theme` attribute and persists the choice in `localStorage`.
 
 ## Reading width
 

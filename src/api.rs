@@ -63,7 +63,7 @@ async fn run_action(msg: IpcMessage) -> Json<ActionResult> {
 
 /// `GET /api/status`. Polled by the browser every few seconds. Never
 /// returns an HTTP error for "daemon not running" -- that's a completely
-/// normal state (e.g. before `sudo tetron up`), so it's represented as
+/// normal state (e.g. before `sudo tetron install`), so it's represented as
 /// `{"reachable": false}` in a 200 response, not a 5xx. The frontend
 /// branches on `reachable`, not on HTTP status.
 pub async fn get_status() -> Json<serde_json::Value> {
@@ -264,7 +264,7 @@ pub async fn leave_network(Path(name): Path<String>, Json(req): Json<LeaveReq>) 
 }
 
 #[derive(Deserialize)]
-pub struct UpDownReq {
+pub struct ResumeStandbyReq {
     #[serde(default)]
     hostname: Option<String>,
     /// `None` means daemon-wide (every joined network); `Some(name)` scopes
@@ -273,14 +273,14 @@ pub struct UpDownReq {
     network: Option<String>,
 }
 
-/// `POST /api/up`.
-pub async fn activate(Json(req): Json<UpDownReq>) -> Json<ActionResult> {
-    run_action(IpcMessage::Up { hostname: req.hostname, network: req.network }).await
+/// `POST /api/resume`.
+pub async fn activate(Json(req): Json<ResumeStandbyReq>) -> Json<ActionResult> {
+    run_action(IpcMessage::Resume { hostname: req.hostname, network: req.network }).await
 }
 
-/// `POST /api/down`.
-pub async fn deactivate(Json(req): Json<UpDownReq>) -> Json<ActionResult> {
-    run_action(IpcMessage::Down { network: req.network }).await
+/// `POST /api/standby`.
+pub async fn deactivate(Json(req): Json<ResumeStandbyReq>) -> Json<ActionResult> {
+    run_action(IpcMessage::Standby { network: req.network }).await
 }
 
 // ---------------------------------------------------------------------
