@@ -24,11 +24,12 @@ pub struct AddonSpec {
     pub github_repo: &'static str,
     pub binary_name: &'static str,
     /// systemd --user unit name (Linux), matching whatever the addon's own
-    /// `install` subcommand registers (its own `service.rs`).
+    /// `install` subcommand registers (its own `service.rs`). Unread on
+    /// non-Linux builds -- same reasoning as tetron-systray's own
+    /// `service.rs` allowing dead code on its platform-gated helpers.
+    #[allow(dead_code)]
     pub linux_unit: &'static str,
-    /// launchd label (macOS), same source. Unread on non-macOS builds --
-    /// same reasoning as tetron-systray's own `service.rs` allowing dead
-    /// code on its platform-gated helpers.
+    /// launchd label (macOS), same source. Unread on non-macOS builds.
     #[allow(dead_code)]
     pub macos_label: &'static str,
     /// Whether this addon needs a graphical session to ever be useful
