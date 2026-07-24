@@ -3280,7 +3280,7 @@ dependencies = [
 
 [[package]]
 name = "tetron-webui"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "anyhow",
  "axum",
