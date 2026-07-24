@@ -304,6 +304,31 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 .danger-zone-label { font-size: 0.75rem; color: var(--status-down); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
 
 /* ---------------------------------------------------------------------
+   Add-ons panel -- one row per known addon, addon-agnostic (renderAddonRow
+   in app.js is data-driven, so a second addon needs no new CSS here).
+   --------------------------------------------------------------------- */
+
+#addons-details { margin-top: 10px; }
+#addons-list { margin-top: 12px; }
+.addon-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.addon-row:last-child { border-bottom: none; }
+.addon-info { min-width: 0; flex: 1 1 auto; }
+.addon-name { font-weight: 600; margin-right: 8px; }
+.addon-status { font-size: 0.8rem; color: var(--text-muted); }
+.addon-status.installed { color: var(--status-active); }
+.addon-description { margin: 4px 0 0; font-size: 0.85rem; }
+.addon-actions { flex: 0 0 auto; }
+.addon-row .form-result { flex-basis: 100%; margin: 4px 0 0; }
+
+/* ---------------------------------------------------------------------
    Confirmation modal -- used for every destructive action, never a bare
    browser confirm().
    --------------------------------------------------------------------- */

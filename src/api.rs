@@ -438,3 +438,33 @@ pub struct NukeReq {
 pub async fn nuke_network(Path(net_id): Path<String>, Json(req): Json<NukeReq>) -> Json<ActionResult> {
     run_action(IpcMessage::Nuke { network_key: net_id, force: req.force, cancel: req.cancel, second: req.second }).await
 }
+
+// ---------------------------------------------------------------------
+// Addon-install framework
+// ---------------------------------------------------------------------
+
+/// `GET /api/addons`. Unlike every other handler in this file, this never
+/// touches the daemon's IPC socket at all -- addon install/status is a
+/// host-level concern (a service registered outside tetron itself), not a
+/// daemon one.
+pub async fn addons_list() -> Json<Vec<crate::addons::AddonStatus>> {
+    Json(crate::addons::list_status().await)
+}
+
+/// `POST /api/addons/:id/install`. Can take several seconds (download +
+/// verify + the addon's own service registration) -- the frontend shows a
+/// "working" state for the duration rather than assuming this is instant
+/// like the other action endpoints.
+pub async fn addon_install(Path(id): Path<String>) -> Json<ActionResult> {
+    match crate::addons::install(&id).await {
+        Ok(message) => ActionResult::ok(message),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn addon_uninstall(Path(id): Path<String>) -> Json<ActionResult> {
+    match crate::addons::uninstall(&id).await {
+        Ok(message) => ActionResult::ok(message),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}

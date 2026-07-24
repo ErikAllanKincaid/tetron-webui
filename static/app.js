@@ -463,8 +463,72 @@ document.getElementById("join-form").addEventListener("submit", async (e) => {
 });
 
 // -----------------------------------------------------------------------
+// Add-ons (host-level install framework, not part of the network status
+// poll -- addon state only ever changes in response to an explicit install/
+// uninstall click here, so it's fetched once at boot and again after any
+// such action, not on the same 2s interval as network status.
+// -----------------------------------------------------------------------
+
+function renderAddonRow(addon) {
+  const action = addon.installed ? "uninstall" : "install";
+  const label = addon.installed ? "Uninstall" : "Install";
+  const btnClass = addon.installed ? "btn-secondary" : "";
+  return `<div class="addon-row" data-addon="${addon.id}">
+    <div class="addon-info">
+      <span class="addon-name">${addon.display_name}</span>
+      <span class="addon-status ${addon.installed ? "installed" : "not-installed"}">${addon.installed ? "installed" : "not installed"}</span>
+      <p class="muted addon-description">${addon.description}</p>
+    </div>
+    <div class="addon-actions">
+      <button class="btn-small ${btnClass}" data-action="${action}" data-addon="${addon.id}">${label}</button>
+    </div>
+    <p class="form-result"></p>
+  </div>`;
+}
+
+async function pollAddons() {
+  const list = document.getElementById("addons-list");
+  try {
+    const addons = await getJson("/api/addons");
+    list.innerHTML = addons.length ? addons.map(renderAddonRow).join("") : `<p class="muted">No add-ons known.</p>`;
+  } catch (e) {
+    list.innerHTML = `<p class="muted">Could not load add-ons: ${String(e)}</p>`;
+  }
+}
+
+document.getElementById("addons-list").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-action]");
+  if (!btn) return;
+  const { action, addon } = btn.dataset;
+  const row = btn.closest(".addon-row");
+  const out = row.querySelector(".form-result");
+
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = action === "install" ? "Installing…" : "Uninstalling…";
+  out.textContent = "";
+  out.className = "form-result";
+
+  const result = await postJson(`/api/addons/${encodeURIComponent(addon)}/${action}`, {});
+  if (result.ok) {
+    out.textContent = result.message;
+    out.className = "form-result success";
+    // Leave the success message on screen briefly before refreshing --
+    // an immediate pollAddons() would wipe this element instantly, since
+    // it lives inside the very row pollAddons() rebuilds from scratch.
+    setTimeout(pollAddons, 1500);
+  } else {
+    out.textContent = result.error;
+    out.className = "form-result error";
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+});
+
+// -----------------------------------------------------------------------
 // Boot
 // -----------------------------------------------------------------------
 
 poll();
+pollAddons();
 setInterval(poll, POLL_INTERVAL_MS);

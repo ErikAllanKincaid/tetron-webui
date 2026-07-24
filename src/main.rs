@@ -6,6 +6,7 @@
 //! front of this themselves; that's a decision this project shouldn't make
 //! on their behalf by defaulting to a public bind address.
 
+mod addons;
 mod api;
 mod ipc_client;
 mod service;
@@ -86,7 +87,11 @@ async fn main() -> anyhow::Result<()> {
             "/api/networks/{name}/admin",
             get(api::admin_list).post(api::admin_add),
         )
-        .route("/api/networks/{net_id}/nuke", post(api::nuke_network));
+        .route("/api/networks/{net_id}/nuke", post(api::nuke_network))
+        // Addon-install framework
+        .route("/api/addons", get(api::addons_list))
+        .route("/api/addons/{id}/install", post(api::addon_install))
+        .route("/api/addons/{id}/uninstall", post(api::addon_uninstall));
 
     let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
     eprintln!("tetron-webui listening on http://{BIND_ADDR}");

@@ -27,7 +27,7 @@ dirs = "6.0.0"
 # underlying type rather than two incompatible iroh versions.
 iroh = "1"
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
@@ -36,3 +36,7 @@ anyhow = "1"
 # main tetron crate (a binary, not meant to be depended on as a library), so
 # it's reimplemented here rather than pulled in.
 bs58 = "0.5"
+# Addon-install framework (src/addons.rs): a private per-install scratch dir
+# for the download+verify step. tetron core keeps this dev-only to preserve
+# its own minimal-deps posture, but that constraint doesn't apply to webui.
+tempfile = "3"
