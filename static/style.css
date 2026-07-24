@@ -273,6 +273,7 @@ button[type="submit"], .btn { background: var(--accent); color: #fff; }
 table.peer-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 12px; }
 table.peer-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.peer-ipv6 { display: block; font-size: 0.72rem; color: var(--text-muted); }
 
 /* ---------------------------------------------------------------------
    Admin-only actions (mint invite, destroy network) -- collapsed by

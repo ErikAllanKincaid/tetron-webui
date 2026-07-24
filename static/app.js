@@ -149,10 +149,11 @@ function renderPeerRow(net, peer) {
     net.role === "admin"
       ? `<button class="btn-small btn-danger" data-action="kick" data-net="${net.short_id}" data-peer="${peer.short_id}">kick</button>`
       : "";
+  const ipv6 = peer.ipv6 ? `<span class="peer-ipv6">${peer.ipv6}</span>` : "";
   return `<tr>
     <td>${peer.hostname || peer.ip}</td>
     <td>${peer.role}</td>
-    <td class="mono">${peer.ip}</td>
+    <td class="mono">${peer.ip}${ipv6}</td>
     <td class="mono">${status}</td>
     <td>${kickBtn}</td>
   </tr>`;
@@ -228,7 +229,7 @@ function renderNetworkRow(net, myShortId) {
       ${standbyBadge}
     </div>
     <div class="network-body">
-      <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}</div>
+      <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}${net.my_ipv6 ? ` · ${net.my_ipv6}` : ""}</div>
       ${peerTable}
       ${renderNukeBanner(net)}
       <div class="action-row">
