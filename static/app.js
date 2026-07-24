@@ -181,7 +181,7 @@ function renderNukeSection(net, myShortId) {
 }
 
 function renderNetworkRow(net, myShortId) {
-  const isExpanded = expandedNetworks.has(net.name);
+  const isExpanded = expandedNetworks.has(net.network);
   const standbyBadge = !net.active ? '<span class="network-standby-badge">standby</span>' : "";
   const online = net.peers.filter((p) => p.connection).length;
 
@@ -190,10 +190,10 @@ function renderNetworkRow(net, myShortId) {
     ? `<table class="peer-table"><thead><tr><th>host</th><th>ip</th><th>connection</th><th></th></tr></thead><tbody>${peerRows}</tbody></table>`
     : `<p class="muted">no other members</p>`;
 
-  return `<div class="network-row ${isExpanded ? "expanded" : ""}" data-network="${net.name}">
-    <div class="network-summary" data-action="toggle-expand" data-network="${net.name}">
+  return `<div class="network-row ${isExpanded ? "expanded" : ""}" data-network="${net.network}">
+    <div class="network-summary" data-action="toggle-expand" data-network="${net.network}">
       <span class="expand-arrow">▸</span>
-      <span class="network-name">${net.name}</span>
+      <span class="network-name">${net.network}</span>
       <span class="network-role">${net.role}</span>
       <span class="network-members">${online}/${net.peers.length + 1}</span>
       ${standbyBadge}
@@ -202,11 +202,11 @@ function renderNetworkRow(net, myShortId) {
       <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}</div>
       ${peerTable}
       <div class="action-row">
-        <button class="btn-small btn-secondary" data-action="${net.active ? "standby" : "resume"}" data-network="${net.name}">
+        <button class="btn-small btn-secondary" data-action="${net.active ? "standby" : "resume"}" data-network="${net.network}">
           ${net.active ? "standby this network" : "activate this network"}
         </button>
-        <button class="btn-small" data-action="invite-create" data-network="${net.name}">mint invite</button>
-        <button class="btn-small btn-secondary" data-action="leave" data-network="${net.name}">leave</button>
+        <button class="btn-small" data-action="invite-create" data-network="${net.network}">mint invite</button>
+        <button class="btn-small btn-secondary" data-action="leave" data-network="${net.network}">leave</button>
       </div>
       ${renderNukeSection(net, myShortId)}
     </div>
@@ -218,11 +218,9 @@ function render(status) {
   setHeader(status);
 
   const container = document.getElementById("networks");
-  const pending = document.getElementById("pending-networks");
 
   if (!status.reachable) {
     container.innerHTML = "";
-    pending.classList.add("hidden");
     return;
   }
 
@@ -230,13 +228,6 @@ function render(status) {
     container.innerHTML = '<p class="muted">No networks yet -- create or join one above.</p>';
   } else {
     container.innerHTML = status.networks.map((n) => renderNetworkRow(n, status.endpoint_short)).join("");
-  }
-
-  if (status.pending_networks && status.pending_networks.length > 0) {
-    pending.textContent = `Waiting for approval: ${status.pending_networks.join(", ")}`;
-    pending.classList.remove("hidden");
-  } else {
-    pending.classList.add("hidden");
   }
 
   const footer = document.getElementById("footer");

@@ -66,6 +66,13 @@ async fn run_action(msg: IpcMessage) -> Json<ActionResult> {
 /// normal state (e.g. before `sudo tetron install`), so it's represented as
 /// `{"reachable": false}` in a 200 response, not a 5xx. The frontend
 /// branches on `reachable`, not on HTTP status.
+///
+/// Catch-up note (tetron fell behind several unrelated releases before this
+/// pass): `StatusResponse.pending_networks` no longer exists on the daemon
+/// side (tetron's `LIVE-001` replaced live join-approval with invite-only
+/// admission, removing the pending-join queue entirely) -- dropped here and
+/// from the frontend's "waiting for approval" banner, which could never
+/// fire again either way.
 pub async fn get_status() -> Json<serde_json::Value> {
     let resp = match call(IpcMessage::Status).await {
         Ok(r) => r,
@@ -80,7 +87,6 @@ pub async fn get_status() -> Json<serde_json::Value> {
         packets_tx,
         bytes_rx,
         bytes_tx,
-        pending_networks,
     } = resp
     else {
         // Status should never come back as anything but StatusResponse or
@@ -100,7 +106,13 @@ pub async fn get_status() -> Json<serde_json::Value> {
         .map(|n| {
             let short_id = n.network_key.as_ref().map(|k| k.chars().take(10).collect::<String>());
             serde_json::json!({
-                "name": n.name,
+                // STATUS-NETWORK-FIELD-001 (tetron): NetworkStatus.name is
+                // being phased out in favor of .network (identical value
+                // during the fleet upgrade window; see tetron's
+                // DO-NOT-COMMIT/TODO.md checklist). Read + re-expose the new
+                // field name here so this API's own contract doesn't
+                // perpetuate the same ambiguity one layer out.
+                "network": n.network,
                 "role": format!("{}", n.role),
                 "my_ip": n.my_ip,
                 "my_ipv6": n.my_ipv6,
@@ -134,7 +146,6 @@ pub async fn get_status() -> Json<serde_json::Value> {
             "packets_rx": packets_rx, "packets_tx": packets_tx,
             "bytes_rx": bytes_rx, "bytes_tx": bytes_tx,
         },
-        "pending_networks": pending_networks,
     }))
 }
 
@@ -150,6 +161,12 @@ pub struct CreateReq {
     hostname: Option<String>,
     #[serde(default)]
     subnet: Option<String>,
+    /// NUKE-CONSENSUS proposer threshold (tetron's `--nuke-consensus`,
+    /// catch-up from `NUKE-CONSENSUS-THRESHOLD-001`). `None` uses tetron's
+    /// own default of 2; no frontend form field for this yet, but wiring it
+    /// through here means the API already supports it once one's added.
+    #[serde(default)]
+    nuke_consensus: Option<u32>,
 }
 
 /// `POST /api/networks`. Always creates a closed (`Restricted`) network --
@@ -162,6 +179,7 @@ pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
         hostname: req.hostname,
         transport: None,
         subnet: req.subnet,
+        nuke_consensus: req.nuke_consensus,
     })
     .await;
     match resp {
@@ -172,6 +190,7 @@ pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
             my_ipv6,
             warning,
             initial_invite_key,
+            subnet,
         }) => Json(serde_json::json!({
             "ok": true,
             "network": network,
@@ -180,6 +199,7 @@ pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
             "my_ipv6": my_ipv6,
             "warning": warning,
             "initial_invite_key": initial_invite_key,
+            "subnet": subnet,
         }))
         .into_response(),
         Ok(IpcMessage::Error { message }) => ActionResult::err(message).into_response(),
@@ -335,14 +355,15 @@ pub struct KickReq {
 }
 
 /// `POST /api/networks/:net_id/kick`. `:net_id` is the network's own short
-/// id (its public key prefix, as shown by `tetron status`'s `id` line), NOT
-/// the local display name -- matching `tetron kick`'s own CLI argument.
-/// `peer` must likewise be a short id or endpoint id, never a hostname --
-/// kick is destructive and needs a cryptographic identity, not a mutable,
+/// id (its public key prefix, as shown by `tetron status`'s `network_key`
+/// line -- renamed from `id` by tetron's `CLI-VOCAB-005`), NOT the local
+/// display name -- matching `tetron kick`'s own CLI argument. `peer` must
+/// likewise be a short id or endpoint id, never a hostname -- kick is
+/// destructive and needs a cryptographic identity, not a mutable,
 /// spoofable one. The frontend's confirmation dialog is the enforcement
 /// point for "are you sure"; this handler just passes the request through.
 pub async fn kick_member(Path(net_id): Path<String>, Json(req): Json<KickReq>) -> Json<ActionResult> {
-    run_action(IpcMessage::Kick { net_id, peer: req.peer }).await
+    run_action(IpcMessage::Kick { network_key: net_id, endpoint_id: req.peer }).await
 }
 
 #[derive(Deserialize)]
@@ -389,5 +410,5 @@ pub struct NukeReq {
 /// presenting one generic "destroy" button that hides what will actually
 /// happen.
 pub async fn nuke_network(Path(net_id): Path<String>, Json(req): Json<NukeReq>) -> Json<ActionResult> {
-    run_action(IpcMessage::Nuke { net_id, force: req.force, cancel: req.cancel, second: req.second }).await
+    run_action(IpcMessage::Nuke { network_key: net_id, force: req.force, cancel: req.cancel, second: req.second }).await
 }
