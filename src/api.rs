@@ -87,6 +87,9 @@ pub async fn get_status() -> Json<serde_json::Value> {
         packets_tx,
         bytes_rx,
         bytes_tx,
+        drops,
+        fragmented_ipv4,
+        fragmented_ipv6,
     } = resp
     else {
         // Status should never come back as anything but StatusResponse or
@@ -146,6 +149,13 @@ pub async fn get_status() -> Json<serde_json::Value> {
             "packets_rx": packets_rx, "packets_tx": packets_tx,
             "bytes_rx": bytes_rx, "bytes_tx": bytes_tx,
         },
+        // Catch-up from tetron's MTU-DIAG-001: per-DropReason breakdown plus
+        // successful-fragmentation counts, previously invisible through this
+        // API. No frontend display for these yet -- exposed here so a future
+        // pass can surface them without another API-shape catch-up.
+        "drops": drops,
+        "fragmented_ipv4": fragmented_ipv4,
+        "fragmented_ipv6": fragmented_ipv6,
     }))
 }
 
