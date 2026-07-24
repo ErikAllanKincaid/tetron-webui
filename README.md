@@ -45,7 +45,7 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 - Per-network resume/standby, and a manual sync button to wake the DHT/group poller immediately.
 - Invites: mint, list, revoke.
 - Coordinator actions: kick a member, grant/list co-coordinators, destroy a network (with the same consensus/force safeguards the CLI has).
-- Add-ons panel: detect, install, and uninstall optional tetron add-ons (`tetron-systray` today) directly from the dashboard.
+- Add-ons panel: detect, install, and uninstall optional tetron add-ons directly from the dashboard — [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (a menu-bar tray icon) is the first one, and this is now its recommended install path. Verified end to end on real hardware, both platforms: a fresh install renders a working tray icon on Linux and macOS, and re-installing over an already-running instance (e.g. an upgrade) cleanly restarts it instead of leaving the old binary in memory.
 
 ## Architecture
 
