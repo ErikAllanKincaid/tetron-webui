@@ -234,6 +234,7 @@ function renderNetworkRow(net, myShortId) {
         <button class="btn-small btn-secondary" data-action="${net.active ? "standby" : "resume"}" data-network="${net.network}">
           ${net.active ? "standby this network" : "activate this network"}
         </button>
+        <button class="btn-small btn-secondary" data-action="sync" data-network="${net.network}" title="Wake the DHT/group poller now instead of waiting for its interval">sync</button>
         <button class="btn-small btn-secondary" data-action="leave" data-network="${net.network}">leave</button>
       </div>
       ${isAdmin ? renderAdminDetails(net, myShortId, isAdminOpen) : ""}
@@ -320,6 +321,11 @@ document.getElementById("networks").addEventListener("click", async (e) => {
   }
   if (action === "standby") {
     await postJson("/api/standby", { network });
+    poll();
+    return;
+  }
+  if (action === "sync") {
+    await postJson("/api/sync", { network });
     poll();
     return;
   }

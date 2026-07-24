@@ -74,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/networks/{name}/leave", post(api::leave_network))
         .route("/api/resume", post(api::activate))
         .route("/api/standby", post(api::deactivate))
+        .route("/api/sync", post(api::sync_now))
         .route(
             "/api/networks/{name}/invites",
             get(api::invite_list).post(api::invite_create),

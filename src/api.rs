@@ -313,6 +313,22 @@ pub async fn deactivate(Json(req): Json<ResumeStandbyReq>) -> Json<ActionResult>
     run_action(IpcMessage::Standby { network: req.network }).await
 }
 
+#[derive(Deserialize)]
+pub struct SyncReq {
+    /// `None` triggers every joined network's poller; `Some(name)` scopes to
+    /// just that one (SYNC-001).
+    #[serde(default)]
+    network: Option<String>,
+}
+
+/// `POST /api/sync`. Manually wakes the DHT/group poller instead of waiting
+/// for its configured interval -- causes no local mutation, same
+/// any-local-user authorization tier as `Status` (AUTHZ-001/SYNC-001 on the
+/// daemon side).
+pub async fn sync_now(Json(req): Json<SyncReq>) -> Json<ActionResult> {
+    run_action(IpcMessage::Sync { network: req.network }).await
+}
+
 // ---------------------------------------------------------------------
 // Invites (Phase 2)
 // ---------------------------------------------------------------------
