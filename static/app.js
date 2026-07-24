@@ -418,7 +418,12 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 function formToObject(form) {
   const data = {};
   new FormData(form).forEach((value, key) => {
-    if (value !== "") data[key] = value;
+    if (value === "") return;
+    // Send actual JSON numbers for <input type="number">, not the string
+    // FormData always yields -- the backend's Option<u32>-typed fields
+    // (e.g. nuke_consensus) fail to deserialize from a JSON string.
+    const el = form.elements[key];
+    data[key] = el && el.type === "number" ? Number(value) : value;
   });
   return data;
 }

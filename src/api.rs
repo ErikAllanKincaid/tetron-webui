@@ -173,8 +173,7 @@ pub struct CreateReq {
     subnet: Option<String>,
     /// NUKE-CONSENSUS proposer threshold (tetron's `--nuke-consensus`,
     /// catch-up from `NUKE-CONSENSUS-THRESHOLD-001`). `None` uses tetron's
-    /// own default of 2; no frontend form field for this yet, but wiring it
-    /// through here means the API already supports it once one's added.
+    /// own default of 2.
     #[serde(default)]
     nuke_consensus: Option<u32>,
 }
