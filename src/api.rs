@@ -133,6 +133,7 @@ pub async fn get_status() -> Json<serde_json::Value> {
                     "ipv6": p.ipv6,
                     "hostname": p.hostname,
                     "connection": p.connection,
+                    "role": if p.is_coordinator { "admin" } else { "member" },
                 })).collect::<Vec<_>>(),
             })
         })

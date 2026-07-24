@@ -151,6 +151,7 @@ function renderPeerRow(net, peer) {
       : "";
   return `<tr>
     <td>${peer.hostname || peer.ip}</td>
+    <td>${peer.role}</td>
     <td class="mono">${peer.ip}</td>
     <td class="mono">${status}</td>
     <td>${kickBtn}</td>
@@ -209,7 +210,7 @@ function renderNetworkRow(net, myShortId) {
 
   const peerRows = net.peers.map((p) => renderPeerRow(net, p)).join("");
   const peerTable = net.peers.length
-    ? `<table class="peer-table"><thead><tr><th>host</th><th>ip</th><th>connection</th><th></th></tr></thead><tbody>${peerRows}</tbody></table>`
+    ? `<table class="peer-table"><thead><tr><th>host</th><th>role</th><th>ip</th><th>connection</th><th></th></tr></thead><tbody>${peerRows}</tbody></table>`
     : `<p class="muted">no other members</p>`;
 
   const isAdmin = net.role === "admin";
