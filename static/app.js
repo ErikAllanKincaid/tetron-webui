@@ -100,10 +100,16 @@ function confirmAction(title, body, onConfirm) {
 
 const POLL_INTERVAL_MS = 2000;
 
-// Tracks which network rows are currently expanded (by name) across
-// re-renders, so polling every 2s doesn't visually collapse something the
-// user just opened. Rebuilt from scratch on each poll otherwise.
-const expandedNetworks = new Set();
+// Tracks which networks' admin <details> are currently open (by name)
+// across re-renders -- #networks' innerHTML is fully replaced every poll,
+// which would otherwise snap a manually-opened <details> shut every 2s.
+const adminOpenNetworks = new Set();
+// Whether the create/join panel's <details> should default open: true
+// only until the user has at least one network, and only re-applied on
+// that specific reachable/empty -> non-empty transition (see render()) so
+// polling doesn't fight a user who reopened it themselves to add another
+// network.
+let wasNetworksEmpty = true;
 let lastStatus = null;
 
 function setHeader(status) {
@@ -140,7 +146,7 @@ function renderPeerRow(net, peer) {
     ? `${conn.conn_type.toLowerCase()} · ${conn.rtt_ms != null ? conn.rtt_ms.toFixed(0) + "ms" : "?"} · ↑${formatBytes(conn.bytes_tx)} ↓${formatBytes(conn.bytes_rx)}`
     : "offline";
   const kickBtn =
-    net.role === "coordinator"
+    net.role === "admin"
       ? `<button class="btn-small btn-danger" data-action="kick" data-net="${net.short_id}" data-peer="${peer.short_id}">kick</button>`
       : "";
   return `<tr>
@@ -151,37 +157,53 @@ function renderPeerRow(net, peer) {
   </tr>`;
 }
 
-function renderNukeSection(net, myShortId) {
+// A pending nuke is a status fact every member should see, not an admin-only
+// concern -- separate from renderNukeActions below, which gates the actual
+// propose/second/cancel buttons to admins only.
+function renderNukeBanner(net) {
+  const proposals = net.nuke_proposals || [];
+  if (proposals.length === 0) return "";
+  const who = proposals.map((p) => p.short_id).join(", ");
+  return `<div class="nuke-proposal-banner">Nuke proposed by ${who} (${proposals.length}/2 coordinators needed).</div>`;
+}
+
+// Admin-only: the actual destroy/second/cancel buttons. Never called for a
+// plain member's own row (see renderNetworkRow) -- a member sees the banner
+// above but has no way to act on it, same as they have no invite/kick button.
+function renderNukeActions(net, myShortId) {
   const proposals = net.nuke_proposals || [];
   const iAlreadyProposed = proposals.some((p) => p.short_id === myShortId);
   const otherProposal = proposals.find((p) => p.short_id !== myShortId);
 
-  let banner = "";
-  if (proposals.length > 0) {
-    const who = proposals.map((p) => p.short_id).join(", ");
-    banner = `<div class="nuke-proposal-banner">Nuke proposed by ${who} (${proposals.length}/2 coordinators needed).</div>`;
+  if (iAlreadyProposed) {
+    return `<button class="btn-small btn-secondary" data-action="nuke-cancel" data-net="${net.short_id}">cancel my proposal</button>`;
   }
-
-  let actions = "";
-  if (net.role === "coordinator") {
-    if (iAlreadyProposed) {
-      actions = `<button class="btn-small btn-secondary" data-action="nuke-cancel" data-net="${net.short_id}">cancel my proposal</button>`;
-    } else if (otherProposal) {
-      actions = `<button class="btn-small btn-danger" data-action="nuke-second" data-net="${net.short_id}" data-second="${otherProposal.short_id}">second ${otherProposal.short_id}'s proposal</button>`;
-    } else {
-      actions = `<button class="btn-small btn-danger" data-action="nuke-propose" data-net="${net.short_id}">destroy network</button>`;
-    }
+  if (otherProposal) {
+    return `<button class="btn-small btn-danger" data-action="nuke-second" data-net="${net.short_id}" data-second="${otherProposal.short_id}">second ${otherProposal.short_id}'s proposal</button>`;
   }
+  return `<button class="btn-small btn-danger" data-action="nuke-propose" data-net="${net.short_id}">destroy network</button>`;
+}
 
-  return `<div class="danger-zone">
-    <div class="danger-zone-label">Danger zone</div>
-    ${banner}
-    ${actions}
-  </div>`;
+// Admin-only actions (mint invite, destroy network) tucked into a collapsed
+// <details> -- these are the least-used, highest-consequence actions, so
+// they stay out of the way until deliberately opened. Never rendered at all
+// for a plain member's row: a "member" role has no invite/nuke capability
+// server-side either, so there is nothing to show, not just something to
+// hide -- see the daemon's own coordinator_handle gate.
+function renderAdminDetails(net, myShortId, isOpen) {
+  return `<details class="admin-details" data-network="${net.network}" ${isOpen ? "open" : ""}>
+    <summary>Admin</summary>
+    <div class="action-row">
+      <button class="btn-small" data-action="invite-create" data-network="${net.network}">mint invite</button>
+    </div>
+    <div class="danger-zone">
+      <div class="danger-zone-label">Danger zone</div>
+      ${renderNukeActions(net, myShortId)}
+    </div>
+  </details>`;
 }
 
 function renderNetworkRow(net, myShortId) {
-  const isExpanded = expandedNetworks.has(net.network);
   const standbyBadge = !net.active ? '<span class="network-standby-badge">standby</span>' : "";
   const online = net.peers.filter((p) => p.connection).length;
 
@@ -190,25 +212,31 @@ function renderNetworkRow(net, myShortId) {
     ? `<table class="peer-table"><thead><tr><th>host</th><th>ip</th><th>connection</th><th></th></tr></thead><tbody>${peerRows}</tbody></table>`
     : `<p class="muted">no other members</p>`;
 
-  return `<div class="network-row ${isExpanded ? "expanded" : ""}" data-network="${net.network}">
-    <div class="network-summary" data-action="toggle-expand" data-network="${net.network}">
-      <span class="expand-arrow">▸</span>
+  const isAdmin = net.role === "admin";
+  const isAdminOpen = adminOpenNetworks.has(net.network);
+
+  // Members list (the "tetron status" equivalent -- the most-used thing
+  // here) is always visible, never behind a click. Only the admin-only
+  // actions below it are a dropdown, and only for a role that can actually
+  // use them.
+  return `<div class="network-row" data-network="${net.network}">
+    <div class="network-summary">
       <span class="network-name">${net.network}</span>
       <span class="network-role">${net.role}</span>
       <span class="network-members">${online}/${net.peers.length + 1}</span>
       ${standbyBadge}
     </div>
-    <div class="network-detail">
+    <div class="network-body">
       <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}</div>
       ${peerTable}
+      ${renderNukeBanner(net)}
       <div class="action-row">
         <button class="btn-small btn-secondary" data-action="${net.active ? "standby" : "resume"}" data-network="${net.network}">
           ${net.active ? "standby this network" : "activate this network"}
         </button>
-        <button class="btn-small" data-action="invite-create" data-network="${net.network}">mint invite</button>
         <button class="btn-small btn-secondary" data-action="leave" data-network="${net.network}">leave</button>
       </div>
-      ${renderNukeSection(net, myShortId)}
+      ${isAdmin ? renderAdminDetails(net, myShortId, isAdminOpen) : ""}
     </div>
   </div>`;
 }
@@ -224,10 +252,39 @@ function render(status) {
     return;
   }
 
-  if (status.networks.length === 0) {
+  // Networks-first once at least one exists (see style.css's
+  // body.has-networks rule) -- the create/join forms are the primary
+  // thing to see on a fresh install, but a secondary thing once there's
+  // an actual mesh to check the health of.
+  const isEmpty = status.networks.length === 0;
+  document.body.classList.toggle("has-networks", !isEmpty);
+
+  // Only force the create/join <details> open/closed on the actual
+  // empty <-> non-empty transition, not on every poll tick -- otherwise a
+  // user who reopened it themselves (e.g. to add a second network) would
+  // get fought every 2s.
+  if (isEmpty !== wasNetworksEmpty) {
+    document.getElementById("create-join-details").open = isEmpty;
+    wasNetworksEmpty = isEmpty;
+  }
+
+  if (isEmpty) {
     container.innerHTML = '<p class="muted">No networks yet -- create or join one above.</p>';
   } else {
     container.innerHTML = status.networks.map((n) => renderNetworkRow(n, status.endpoint_short)).join("");
+    // <details>' native "toggle" event does not bubble, so it cannot be
+    // handled by the single delegated click listener below (the delegated
+    // listener catches clicks on the <summary>'s underlying activation,
+    // but that fires before the browser's own open/close default action
+    // has actually run) -- attach directly per row instead. Cheap: only
+    // ever as many admin rows as networks, and #networks' entire subtree
+    // is already being freshly rebuilt this same tick anyway.
+    container.querySelectorAll(".admin-details").forEach((details) => {
+      details.addEventListener("toggle", () => {
+        if (details.open) adminOpenNetworks.add(details.dataset.network);
+        else adminOpenNetworks.delete(details.dataset.network);
+      });
+    });
   }
 
   const footer = document.getElementById("footer");
@@ -255,13 +312,6 @@ document.getElementById("networks").addEventListener("click", async (e) => {
   if (!el) return;
   const action = el.dataset.action;
   const network = el.dataset.network;
-
-  if (action === "toggle-expand") {
-    if (expandedNetworks.has(network)) expandedNetworks.delete(network);
-    else expandedNetworks.add(network);
-    if (lastStatus) render(lastStatus);
-    return;
-  }
 
   if (action === "resume") {
     await postJson("/api/resume", { network });

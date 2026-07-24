@@ -141,7 +141,17 @@ main {
   width: 92%;
   max-width: 900px;
   margin: 24px auto;
+  /* Reordered by app.js via body.has-networks -- source order (create/join
+     panel, then the network list) stays the default for a fresh install
+     with nothing joined yet; once at least one network exists, the
+     at-a-glance status list belongs above the input forms, not below
+     them (same "glance before you dig in" priority the sticky header
+     already follows). */
+  display: flex;
+  flex-direction: column;
 }
+
+body.has-networks #create-join-panel { order: 1; }
 
 /* ---------------------------------------------------------------------
    Create/join panel
@@ -154,6 +164,28 @@ main {
   padding: 16px;
   margin-bottom: 20px;
 }
+
+/* Shared disclosure-triangle styling for every <details>/<summary> in the
+   page (the create/join panel here, plus each network row's admin
+   section below) -- a hand-drawn arrow instead of the browser default
+   marker, rotating open the same way the old per-row expand arrow used
+   to. */
+summary {
+  cursor: pointer;
+  list-style: none;
+}
+summary::-webkit-details-marker { display: none; }
+summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 8px;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+details[open] > summary::before { transform: rotate(90deg); }
+
+.panel summary { font-weight: 600; }
+.panel .panel-tabs { margin-top: 14px; }
 
 .panel-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .tab-btn {
@@ -196,9 +228,10 @@ button[type="submit"], .btn { background: var(--accent); color: #fff; }
 
 /* ---------------------------------------------------------------------
    Tier 2: one row per network. Deliberately stays a single line even with
-   many networks -- long scroll, not pagination, since the accordion (tier
-   3) keeps the rendered page short regardless of how much detail exists
-   underneath any one row.
+   many networks -- long scroll, not pagination, since the network's own
+   member list (tier 3, the most-used thing here -- the "tetron status"
+   equivalent) stays compact on its own; only the admin-only actions
+   further below are ever behind a click.
    --------------------------------------------------------------------- */
 
 .network-row {
@@ -214,9 +247,7 @@ button[type="submit"], .btn { background: var(--accent); color: #fff; }
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
-  cursor: pointer;
 }
-.network-summary:hover { background: var(--bg); }
 
 .network-name { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .network-role { font-size: 0.8rem; color: var(--text-muted); }
@@ -228,21 +259,35 @@ button[type="submit"], .btn { background: var(--accent); color: #fff; }
   border-radius: 4px;
   padding: 1px 6px;
 }
-.expand-arrow { transition: transform 0.15s ease; color: var(--text-muted); }
-.network-row.expanded .expand-arrow { transform: rotate(90deg); }
 
 /* ---------------------------------------------------------------------
-   Tier 3: peer detail + actions, hidden until a network row is expanded.
+   Tier 3: member list + status-facts, always visible -- this is the most
+   frequently checked thing in the whole page, so it is never behind a
+   click. Only .admin-details (further below, admin role only) collapses.
    --------------------------------------------------------------------- */
 
-.network-detail { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
-.network-row.expanded .network-detail { display: block; }
+.network-body { padding: 0 16px 16px; border-top: 1px solid var(--border); }
 
 .network-meta { font-size: 0.85rem; color: var(--text-muted); margin: 10px 0; }
 
 table.peer-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-bottom: 12px; }
 table.peer-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+
+/* ---------------------------------------------------------------------
+   Admin-only actions (mint invite, destroy network) -- collapsed by
+   default, and only ever rendered at all for an admin's own row (see
+   app.js's renderNetworkRow -- a member role has nothing here to show,
+   not just something to hide).
+   --------------------------------------------------------------------- */
+
+.admin-details {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.admin-details summary { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.admin-details .action-row { margin-top: 10px; }
 
 .nuke-proposal-banner {
   background: color-mix(in srgb, var(--status-warn) 15%, var(--bg-raised));

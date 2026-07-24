@@ -26,26 +26,34 @@
        there is no fixed count of networks assumed anywhere here. -->
   <main>
     <section id="create-join-panel" class="panel">
-      <div class="panel-tabs">
-        <button class="tab-btn active" data-tab="create">Create network</button>
-        <button class="tab-btn" data-tab="join">Join network</button>
-      </div>
+      <!-- open by default until the daemon reports at least one network
+           (see app.js's wasNetworksEmpty logic) -- available regardless of
+           existing membership, since a member of one network can always
+           still create or join another. -->
+      <details id="create-join-details" open>
+        <summary>Create or join a network</summary>
 
-      <form id="create-form" class="tab-panel" data-tab="create">
-        <label>Network name <input type="text" name="network_name" placeholder="(random if left blank)"></label>
-        <label>Your hostname <input type="text" name="hostname" placeholder="(defaults to your machine's hostname)"></label>
-        <label>Subnet override <input type="text" name="subnet" placeholder="e.g. 10.88.0.0/24 (optional)"></label>
-        <button type="submit">Create</button>
-        <p class="form-result"></p>
-      </form>
+        <div class="panel-tabs">
+          <button class="tab-btn active" data-tab="join">Join network</button>
+          <button class="tab-btn" data-tab="create">Create network</button>
+        </div>
 
-      <form id="join-form" class="tab-panel hidden" data-tab="join">
-        <label>Invite code <input type="text" name="invite_code" required placeholder="paste the tetron join <code> value"></label>
-        <label>Local alias <input type="text" name="alias" placeholder="(optional, local display name only)"></label>
-        <label>Your hostname <input type="text" name="hostname" placeholder="(optional)"></label>
-        <button type="submit">Join</button>
-        <p class="form-result"></p>
-      </form>
+        <form id="join-form" class="tab-panel" data-tab="join">
+          <label>Invite code <input type="text" name="invite_code" required placeholder="paste the tetron join <code> value"></label>
+          <label>Local alias <input type="text" name="alias" placeholder="(optional, local display name only)"></label>
+          <label>Your hostname <input type="text" name="hostname" placeholder="(optional)"></label>
+          <button type="submit">Join</button>
+          <p class="form-result"></p>
+        </form>
+
+        <form id="create-form" class="tab-panel hidden" data-tab="create">
+          <label>Network name <input type="text" name="network_name" placeholder="(random if left blank)"></label>
+          <label>Your hostname <input type="text" name="hostname" placeholder="(defaults to your machine's hostname)"></label>
+          <label>Subnet override <input type="text" name="subnet" placeholder="e.g. 10.88.0.0/24 (optional)"></label>
+          <button type="submit">Create</button>
+          <p class="form-result"></p>
+        </form>
+      </details>
     </section>
 
     <section id="networks"></section>
