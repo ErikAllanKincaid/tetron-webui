@@ -153,6 +153,13 @@ main {
 
 body.has-networks #create-join-panel { order: 1; }
 
+/* Add-ons is the least-core, least-used section (install-once, rarely
+   touched again) -- always sort it last, unconditionally, regardless of
+   whether any networks exist yet. Unlike create-join-panel's order this
+   isn't gated on has-networks: it should never sit above create/join in
+   either state. */
+#addons-panel { order: 2; }
+
 /* ---------------------------------------------------------------------
    Create/join panel
    --------------------------------------------------------------------- */
