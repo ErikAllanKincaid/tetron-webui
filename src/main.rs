@@ -17,8 +17,14 @@ use clap::{Parser, Subcommand};
 
 const BIND_ADDR: &str = "127.0.0.1:7870";
 
+/// Full version string: the crate version plus the git short SHA stamped in
+/// by `build.rs` (e.g. `0.8.4 (a1b2c3d4)`). The SHA distinguishes two builds
+/// that share the same, unbumped crate version -- same pattern as tetron
+/// core's own `FULL_VERSION`.
+const FULL_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_SHA"), ")");
+
 #[derive(Parser)]
-#[command(name = "tetron-webui")]
+#[command(name = "tetron-webui", version = FULL_VERSION)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -32,6 +38,9 @@ enum Command {
     Install,
     /// Stop and remove the per-user service
     Uninstall,
+    /// Print the tetron-webui version
+    #[command(visible_alias = "ver")]
+    Version,
 }
 
 // Static frontend, embedded at compile time -- no file-serving dependency,
@@ -66,6 +75,10 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Some(Command::Install) => return service::install(),
         Some(Command::Uninstall) => return service::uninstall(),
+        Some(Command::Version) => {
+            println!("tetron-webui {FULL_VERSION}");
+            return Ok(());
+        }
         None => {}
     }
 
