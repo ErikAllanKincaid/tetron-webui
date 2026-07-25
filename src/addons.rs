@@ -261,10 +261,35 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
     Ok(format!("{} installed and running.", spec.display_name))
 }
 
+/// Stops+deregisters the addon's own per-user service (its own `uninstall`
+/// subcommand -- `systemctl --user disable --now` / `launchctl unload` plus
+/// removing the unit/plist and, on macOS, the `.app` bundle it copied
+/// itself into) and then removes the binary this webui installed at `dest`.
+///
+/// **The binary-removal step is the actual point of this being a *webui*
+/// concern rather than just delegating entirely to the addon's own
+/// subcommand:** the addon's `uninstall` only knows how to tear down what
+/// it registered (the service), not the file webui itself placed at
+/// `~/.local/bin/<binary>` -- it has no way to know it should delete its
+/// own currently-running executable out from under itself. Found live
+/// (2026-07-25, xps-17-9720): the service genuinely does stop and the tray
+/// icon genuinely does disappear -- `run_ok` below was never the bug -- but
+/// the ~4MB binary was left behind afterward, which reads as "Uninstall
+/// didn't actually uninstall it" even though the running addon is gone.
+/// Best-effort: a failure to delete the file (e.g. permissions) does not
+/// undo the service teardown that already succeeded, so it is reported
+/// distinctly rather than surfaced as a full failure of the whole action.
 pub async fn uninstall(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
     let dest = binary_path(spec)?;
     anyhow::ensure!(dest.exists(), "{} is not installed", spec.display_name);
     run_ok(Command::new(&dest).arg("uninstall")).await?;
-    Ok(format!("{} uninstalled.", spec.display_name))
+    match tokio::fs::remove_file(&dest).await {
+        Ok(()) => Ok(format!("{} uninstalled.", spec.display_name)),
+        Err(e) => Ok(format!(
+            "{} service stopped, but its binary at {} could not be removed: {e}. Delete it manually if you want a full cleanup.",
+            spec.display_name,
+            dest.display()
+        )),
+    }
 }
