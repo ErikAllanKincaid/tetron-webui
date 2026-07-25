@@ -78,7 +78,12 @@ pub fn install() -> Result<()> {
             include_str!("../contrib/tetron-webui.service").replace("/usr/local/bin/tetron-webui", &exe);
         std::fs::write(&path, unit).with_context(|| format!("failed to write {}", path.display()))?;
         run_cmd("systemctl", &["--user", "daemon-reload"]);
-        run_cmd("systemctl", &["--user", "enable", "--now", "tetron-webui"]);
+        run_cmd("systemctl", &["--user", "enable", "tetron-webui"]);
+        // `enable --now` is a no-op restart on an already-active unit, so a
+        // reinstall over a running instance (e.g. upgrading the binary in
+        // place) would never actually pick up the new binary -- explicit
+        // restart instead (same fix as tetron-systray's own service.rs).
+        run_cmd("systemctl", &["--user", "restart", "tetron-webui"]);
     }
 
     #[cfg(target_os = "macos")]

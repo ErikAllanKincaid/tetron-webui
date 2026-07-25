@@ -47,6 +47,23 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 - Coordinator actions: kick a member, grant/list co-coordinators, destroy a network (with the same consensus/force safeguards the CLI has).
 - Add-ons panel: detect, install, and uninstall optional tetron add-ons directly from the dashboard — [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (a menu-bar tray icon) is the first one, and this is now its recommended install path. Verified end to end on real hardware, both platforms: a fresh install renders a working tray icon on Linux and macOS, and re-installing over an already-running instance (e.g. an upgrade) cleanly restarts it instead of leaving the old binary in memory.
 
+## Upgrading
+
+Re-run the same install steps with a fresh binary:
+
+```bash
+curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
+chmod +x tetron-webui
+sudo install tetron-webui /usr/local/bin/tetron-webui   # overwrite the old binary at the same path
+tetron-webui install                                     # re-registers the service and restarts it on the new binary
+```
+
+`install` is idempotent and safe to run over an already-running instance — it rewrites the unit/plist (in case the binary path changed) and explicitly restarts the service, so the new binary takes over immediately rather than waiting for the next reboot or a manual kill.
+
+**No required order relative to the `tetron` daemon or `tetron-systray`.** The IPC wire format (`tetron-proto`) is deliberately tolerant of version skew — every message field is `#[serde(default)]`, so an older webui talking to a newer daemon just doesn't see fields it doesn't know about yet, and a newer webui talking to an older daemon sees defaults for anything the daemon hasn't started sending. There is no version handshake and nothing to break by upgrading webui before, after, or independently of the daemon. (This is a different, much more tolerant contract than the mesh peer-to-peer protocol between `tetron` daemons themselves, which is a hard ALPN version gate — see `tetron`'s own `AGENTS.md` if you're wondering why that one *does* need synchronized upgrades and this doesn't.)
+
+If a `tetron-proto` change actually adds a capability you want to use (a new field, a new IPC op), you need the matching webui release that was built against it — check `tetron-webui`'s own releases page. webui's version number tracks tetron core's current minor (e.g. webui `0.9.x` targets tetron `0.9`), so matching the daemon's minor version is a reasonable rule of thumb if you want to be sure you're not missing something, even though it isn't strictly required for things to keep working.
+
 ## Architecture
 
 ```
