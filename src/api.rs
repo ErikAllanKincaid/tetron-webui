@@ -177,6 +177,10 @@ pub struct CreateReq {
     /// own default of 2.
     #[serde(default)]
     nuke_consensus: Option<u32>,
+    /// tetron's `--tor` flag -- routes this network's transport over Tor
+    /// instead of relay/direct.
+    #[serde(default)]
+    tor: bool,
 }
 
 /// `POST /api/networks`. Always creates a closed (`Restricted`) network --
@@ -187,7 +191,7 @@ pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
         mode: tetron_proto::GroupMode::Restricted,
         network_name: req.network_name,
         hostname: req.hostname,
-        transport: None,
+        transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
         subnet: req.subnet,
         nuke_consensus: req.nuke_consensus,
     })
@@ -230,6 +234,10 @@ pub struct JoinReq {
     alias: Option<String>,
     #[serde(default)]
     hostname: Option<String>,
+    /// tetron's `--tor` flag -- should mirror the coordinator's own
+    /// transport if it used one.
+    #[serde(default)]
+    tor: bool,
 }
 
 /// Mirrors `src/invite.rs`'s `decode_invite_code` in the main tetron crate:
@@ -265,7 +273,7 @@ pub async fn join_network(Json(req): Json<JoinReq>) -> Response {
         network_key: network_key.to_string(),
         alias: req.alias,
         hostname: req.hostname,
-        transport: None,
+        transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
         invite: Some(secret),
     })
     .await;

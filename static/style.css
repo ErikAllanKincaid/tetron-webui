@@ -200,6 +200,8 @@ details[open] > summary::before { transform: rotate(90deg); }
 
 .tab-panel { display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
 .tab-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--text-muted); }
+.tab-panel label.checkbox-label { flex-direction: row; align-items: center; gap: 6px; }
+.tab-panel label.checkbox-label input { width: auto; }
 .tab-panel input {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -302,6 +304,22 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 .action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .danger-zone { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--status-down); }
 .danger-zone-label { font-size: 0.75rem; color: var(--status-down); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+
+.invite-expires-input { width: auto; flex: 1 1 160px; }
+.invite-list { margin-top: 10px; }
+.invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  flex-wrap: wrap;
+}
+.invite-row:last-child { border-bottom: none; }
+.invite-id { color: var(--text-muted); }
+.invite-meta { color: var(--text-muted); flex: 1 1 auto; }
 
 /* ---------------------------------------------------------------------
    Add-ons panel -- one row per known addon, addon-agnostic (renderAddonRow

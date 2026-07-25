@@ -42,6 +42,7 @@
           <label>Invite code <input type="text" name="invite_code" required placeholder="paste the tetron join <code> value"></label>
           <label>Local alias <input type="text" name="alias" placeholder="(optional, local display name only)"></label>
           <label>Your hostname <input type="text" name="hostname" placeholder="(optional)"></label>
+          <label class="checkbox-label"><input type="checkbox" name="tor"> Route over Tor (mirror the coordinator's transport if it used one)</label>
           <button type="submit">Join</button>
           <p class="form-result"></p>
         </form>
@@ -51,6 +52,7 @@
           <label>Your hostname <input type="text" name="hostname" placeholder="(defaults to your machine's hostname)"></label>
           <label>Subnet override <input type="text" name="subnet" placeholder="e.g. 10.88.0.0/24 (optional)"></label>
           <label>Nuke-consensus threshold <input type="number" name="nuke_consensus" min="2" step="1" placeholder="(default 2)"></label>
+          <label class="checkbox-label"><input type="checkbox" name="tor"> Route over Tor</label>
           <button type="submit">Create</button>
           <p class="form-result"></p>
         </form>

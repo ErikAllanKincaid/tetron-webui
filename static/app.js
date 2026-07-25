@@ -196,13 +196,46 @@ function renderAdminDetails(net, myShortId, isOpen) {
   return `<details class="admin-details" data-network="${net.network}" ${isOpen ? "open" : ""}>
     <summary>Admin</summary>
     <div class="action-row">
+      <input type="text" class="invite-expires-input" data-network="${net.network}" placeholder="expires (e.g. 24h, 7d -- optional)">
       <button class="btn-small" data-action="invite-create" data-network="${net.network}">mint invite</button>
     </div>
+    <div class="invite-list" data-network="${net.network}"><p class="muted">Loading invites…</p></div>
     <div class="danger-zone">
       <div class="danger-zone-label">Danger zone</div>
       ${renderNukeActions(net, myShortId)}
     </div>
   </details>`;
+}
+
+function formatEpoch(seconds) {
+  if (!seconds) return "never";
+  return new Date(seconds * 1000).toLocaleString();
+}
+
+function renderInviteRow(net, invite) {
+  const status = invite.revoked ? "revoked" : "active";
+  return `<div class="invite-row">
+    <span class="mono invite-id">${invite.id}</span>
+    <span class="invite-meta">expires ${formatEpoch(invite.expires_at)} · ${status}</span>
+    ${invite.revoked ? "" : `<button class="btn-small btn-secondary" data-action="invite-revoke" data-network="${net.network}" data-invite="${invite.id}">revoke</button>`}
+  </div>`;
+}
+
+async function loadInvites(network) {
+  const container = document.querySelector(`.invite-list[data-network="${CSS.escape(network)}"]`);
+  if (!container) return;
+  try {
+    const result = await getJson(`/api/networks/${encodeURIComponent(network)}/invites`);
+    if (!result.ok) {
+      container.innerHTML = `<p class="muted">Could not load invites: ${result.error}</p>`;
+      return;
+    }
+    container.innerHTML = result.invites.length
+      ? result.invites.map((inv) => renderInviteRow({ network }, inv)).join("")
+      : `<p class="muted">No invites minted yet.</p>`;
+  } catch (e) {
+    container.innerHTML = `<p class="muted">Could not load invites: ${String(e)}</p>`;
+  }
 }
 
 function renderNetworkRow(net, myShortId) {
@@ -283,9 +316,19 @@ function render(status) {
     // ever as many admin rows as networks, and #networks' entire subtree
     // is already being freshly rebuilt this same tick anyway.
     container.querySelectorAll(".admin-details").forEach((details) => {
+      // The whole #networks subtree is rebuilt every poll tick, so an
+      // already-open admin panel is a brand-new <details open> element
+      // each time -- its invite-list placeholder needs reloading here,
+      // not just on a user-driven toggle (a freshly created already-open
+      // element never fires "toggle").
+      if (details.open) loadInvites(details.dataset.network);
       details.addEventListener("toggle", () => {
-        if (details.open) adminOpenNetworks.add(details.dataset.network);
-        else adminOpenNetworks.delete(details.dataset.network);
+        if (details.open) {
+          adminOpenNetworks.add(details.dataset.network);
+          loadInvites(details.dataset.network);
+        } else {
+          adminOpenNetworks.delete(details.dataset.network);
+        }
       });
     });
   }
@@ -333,12 +376,24 @@ document.getElementById("networks").addEventListener("click", async (e) => {
   }
 
   if (action === "invite-create") {
-    const result = await postJson(`/api/networks/${encodeURIComponent(network)}/invites`, {});
+    const expiresInput = document.querySelector(`.invite-expires-input[data-network="${CSS.escape(network)}"]`);
+    const expires = expiresInput && expiresInput.value ? expiresInput.value : undefined;
+    const result = await postJson(`/api/networks/${encodeURIComponent(network)}/invites`, { expires });
     if (result.ok) {
       alert(`Invite key (single use):\n\n${result.invite_key}`);
+      if (expiresInput) expiresInput.value = "";
+      loadInvites(network);
     } else {
       alert(`Failed to mint invite: ${result.error}`);
     }
+    return;
+  }
+
+  if (action === "invite-revoke") {
+    const inviteId = el.dataset.invite;
+    const result = await deleteJson(`/api/networks/${encodeURIComponent(network)}/invites/${encodeURIComponent(inviteId)}`);
+    if (!result.ok) alert(`Failed to revoke invite: ${result.error}`);
+    loadInvites(network);
     return;
   }
 
@@ -421,11 +476,18 @@ function formToObject(form) {
   const data = {};
   new FormData(form).forEach((value, key) => {
     if (value === "") return;
+    const el = form.elements[key];
     // Send actual JSON numbers for <input type="number">, not the string
     // FormData always yields -- the backend's Option<u32>-typed fields
     // (e.g. nuke_consensus) fail to deserialize from a JSON string.
-    const el = form.elements[key];
-    data[key] = el && el.type === "number" ? Number(value) : value;
+    // Checkboxes only appear in FormData at all when checked, with a
+    // string value ("on") that a bool field can't deserialize -- convert
+    // to a real boolean. Unchecked boxes never reach this callback, which
+    // is fine: the backend's #[serde(default)] fields treat "key absent"
+    // as false.
+    if (el && el.type === "number") data[key] = Number(value);
+    else if (el && el.type === "checkbox") data[key] = el.checked;
+    else data[key] = value;
   });
   return data;
 }
