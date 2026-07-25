@@ -51,14 +51,18 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 
 Re-run the same install steps with a fresh binary:
 
+Overwrite the old binary at the same path.
+
+Re-registers the service and restarts it on the new binary
+
 ```bash
 curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
 chmod +x tetron-webui
-sudo install tetron-webui /usr/local/bin/tetron-webui   # overwrite the old binary at the same path
-tetron-webui install                                     # re-registers the service and restarts it on the new binary
+sudo install tetron-webui /usr/local/bin/tetron-webui
+tetron-webui install
 ```
 
-`install` is idempotent and safe to run over an already-running instance — it rewrites the unit/plist (in case the binary path changed) and explicitly restarts the service, so the new binary takes over immediately rather than waiting for the next reboot or a manual kill.
+`install` is idempotent and safe to run over an already-running instance, it rewrites the unit/plist (in case the binary path changed) and explicitly restarts the service, so the new binary takes over immediately rather than waiting for the next reboot or a manual kill.
 
 **No required order relative to the `tetron` daemon or `tetron-systray`.** The IPC wire format (`tetron-proto`) is deliberately tolerant of version skew — every message field is `#[serde(default)]`, so an older webui talking to a newer daemon just doesn't see fields it doesn't know about yet, and a newer webui talking to an older daemon sees defaults for anything the daemon hasn't started sending. There is no version handshake and nothing to break by upgrading webui before, after, or independently of the daemon. (This is a different, much more tolerant contract than the mesh peer-to-peer protocol between `tetron` daemons themselves, which is a hard ALPN version gate — see `tetron`'s own `AGENTS.md` if you're wondering why that one *does* need synchronized upgrades and this doesn't.)
 
