@@ -43,7 +43,7 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 - Live dashboard: which networks you're on, per-member role/host/IP/IPv6/connection health, traffic stats.
 - Network lifecycle: create (including the nuke-consensus threshold), join, leave.
 - Per-network resume/standby, and a manual sync button to wake the DHT/group poller immediately.
-- Invites: mint, list, revoke.
+- Invites: mint, list, revoke — minting (including the one auto-minted on network creation) shows the key as a scannable QR code, not just raw text.
 - Coordinator actions: kick a member, grant/list co-coordinators, destroy a network (with the same consensus/force safeguards the CLI has).
 - Add-ons panel: detect, install, and uninstall optional tetron add-ons directly from the dashboard — [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (a menu-bar tray icon) is the first one, and this is now its recommended install path. Verified end to end on real hardware, both platforms: a fresh install renders a working tray icon on Linux and macOS, and re-installing over an already-running instance (e.g. an upgrade) cleanly restarts it instead of leaving the old binary in memory.
 
@@ -75,6 +75,8 @@ Browser --HTTP (127.0.0.1 only)--> tetron-webui --msgpack/Unix socket--> tetron 
 ```
 
 No daemon-side changes. Depends on `tetron-proto` (tetron's shared wire-protocol crate) as a git dependency, floating on `main` rather than pinned to a release tag — see the comment in `Cargo.toml` for why.
+
+The invite QR code is generated entirely client-side — `static/vendor/qrcode.js` vendors [kazuhikoarase/qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT license, unmodified, see the file's own header) so no invite secret ever needs a round trip anywhere beyond the browser tab that already has it.
 
 ## Building your own version of this
 

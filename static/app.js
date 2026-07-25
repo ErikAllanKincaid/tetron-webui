@@ -91,6 +91,52 @@ function confirmAction(title, body, onConfirm) {
 }
 
 // -----------------------------------------------------------------------
+// Invite QR modal. Shown right after minting an invite (or creating a
+// network, which auto-mints one) -- the raw invite key is only ever
+// available at that moment. GET /api/networks/:name/invites (loadInvites,
+// below) never returns it back: it's a single-use secret, not stored
+// server-side for redisplay, so there is no "show QR" action on an
+// already-listed invite row, only on a freshly minted one.
+// -----------------------------------------------------------------------
+
+const qrModal = document.getElementById("qr-modal");
+const qrTitle = document.getElementById("qr-title");
+const qrCode = document.getElementById("qr-code");
+const qrCodeText = document.getElementById("qr-code-text");
+const qrCopy = document.getElementById("qr-copy");
+const qrClose = document.getElementById("qr-close");
+
+function showInviteQr(inviteKey, title) {
+  // typeNumber 0 = auto-pick the smallest QR version that fits; 'M' =
+  // ~15% error correction, qrcode-generator's own default recommendation
+  // for general-purpose codes (enough to survive a scuffed phone screen
+  // without inflating the module count on this fairly long bs58 string).
+  const qr = qrcode(0, "M");
+  qr.addData(inviteKey);
+  qr.make();
+  qrTitle.textContent = title || "Invite key";
+  qrCode.innerHTML = qr.createSvgTag(4);
+  qrCodeText.textContent = inviteKey;
+  qrModal.classList.remove("hidden");
+
+  const cleanup = () => {
+    qrModal.classList.add("hidden");
+    qrCopy.removeEventListener("click", handleCopy);
+    qrClose.removeEventListener("click", handleClose);
+  };
+  const handleCopy = () => {
+    navigator.clipboard.writeText(inviteKey).then(() => {
+      qrCopy.textContent = "Copied!";
+      setTimeout(() => { qrCopy.textContent = "Copy"; }, 1200);
+    });
+  };
+  const handleClose = () => cleanup();
+
+  qrCopy.addEventListener("click", handleCopy);
+  qrClose.addEventListener("click", handleClose);
+}
+
+// -----------------------------------------------------------------------
 // Status polling (Phase 1). This is also the entire "reconnect after a
 // daemon restart" story: every poll independently reconnects via
 // tetron-webui's own backend, so there is no persistent connection on this
@@ -140,6 +186,17 @@ function formatBytes(n) {
   return `${(n / 1024 / 1024).toFixed(1)}MB`;
 }
 
+// Small inline "copy to clipboard" button for a value shown in mono text
+// (IPs, endpoint/network short ids). Complements the selection-preserving
+// render() guard below rather than replacing it: this sidesteps the
+// re-render problem entirely for the common case (no text selection
+// involved, nothing to lose on the next poll tick), but people may still
+// want to manually select longer runs of text (e.g. a whole nuke-proposal
+// banner) where the selection guard is what actually matters.
+function copyBtn(value) {
+  return `<button class="copy-btn" data-action="copy" data-copy="${value}" title="Copy ${value}">⧉</button>`;
+}
+
 function renderPeerRow(net, peer) {
   const conn = peer.connection;
   const status = conn
@@ -149,11 +206,11 @@ function renderPeerRow(net, peer) {
     net.role === "admin"
       ? `<button class="btn-small btn-danger" data-action="kick" data-net="${net.short_id}" data-peer="${peer.short_id}">kick</button>`
       : "";
-  const ipv6 = peer.ipv6 ? `<span class="peer-ipv6">${peer.ipv6}</span>` : "";
+  const ipv6 = peer.ipv6 ? `<span class="peer-ipv6">${peer.ipv6}${copyBtn(peer.ipv6)}</span>` : "";
   return `<tr>
     <td>${peer.role}</td>
     <td>${peer.hostname || peer.ip}</td>
-    <td class="mono">${peer.ip}${ipv6}</td>
+    <td class="mono">${peer.ip}${copyBtn(peer.ip)}${ipv6}</td>
     <td class="mono">${status}</td>
     <td>${kickBtn}</td>
   </tr>`;
@@ -262,7 +319,7 @@ function renderNetworkRow(net, myShortId) {
       ${standbyBadge}
     </div>
     <div class="network-body">
-      <div class="network-meta mono">id ${net.short_id || "?"} · interface ${net.tun_name || "?"} · ${net.my_ip}${net.my_ipv6 ? ` · ${net.my_ipv6}` : ""}</div>
+      <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
       ${peerTable}
       ${renderNukeBanner(net)}
       <div class="action-row">
@@ -277,6 +334,16 @@ function renderNetworkRow(net, myShortId) {
   </div>`;
 }
 
+// True if the browser's current text selection is non-collapsed and
+// anchored somewhere inside `el`. Used to freeze #networks' contents for
+// one poll tick rather than tear the user's in-progress selection out from
+// under them -- see render()'s guard below.
+function selectionInside(el) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return false;
+  return el.contains(sel.getRangeAt(0).commonAncestorContainer);
+}
+
 function render(status) {
   lastStatus = status;
   setHeader(status);
@@ -284,9 +351,13 @@ function render(status) {
   const container = document.getElementById("networks");
 
   if (!status.reachable) {
-    container.innerHTML = "";
+    document.getElementById("footer-traffic").textContent = "";
+    if (!selectionInside(container)) container.innerHTML = "";
     return;
   }
+
+  document.getElementById("footer-traffic").textContent =
+    `↑${formatBytes(status.traffic.bytes_tx)} ↓${formatBytes(status.traffic.bytes_rx)}  ·  `;
 
   // Networks-first once at least one exists (see style.css's
   // body.has-networks rule) -- the create/join forms are the primary
@@ -303,6 +374,17 @@ function render(status) {
     document.getElementById("create-join-details").open = isEmpty;
     wasNetworksEmpty = isEmpty;
   }
+
+  // Skip rebuilding #networks entirely while the user has an active text
+  // selection inside it (e.g. mid-copy of an IP or endpoint id) -- the
+  // full innerHTML replacement below would otherwise destroy that
+  // selection on literally every 2s poll tick even though the underlying
+  // data usually hasn't changed. Every other status-driven update above
+  // this guard still runs; only this one subtree is frozen for this tick,
+  // and the very next poll retries once the selection clears. The copy
+  // buttons (copyBtn(), above) are the complementary fix for the common
+  // case where nothing needs manual selection at all.
+  if (selectionInside(container)) return;
 
   if (isEmpty) {
     container.innerHTML = '<p class="muted">No networks yet -- create or join one above.</p>';
@@ -332,9 +414,6 @@ function render(status) {
       });
     });
   }
-
-  const footer = document.getElementById("footer");
-  footer.textContent = `↑${formatBytes(status.traffic.bytes_tx)} ↓${formatBytes(status.traffic.bytes_rx)}`;
 }
 
 async function poll() {
@@ -359,6 +438,16 @@ document.getElementById("networks").addEventListener("click", async (e) => {
   const action = el.dataset.action;
   const network = el.dataset.network;
 
+  if (action === "copy") {
+    const value = el.dataset.copy;
+    navigator.clipboard.writeText(value).then(() => {
+      const original = el.textContent;
+      el.textContent = "✓";
+      setTimeout(() => { el.textContent = original; }, 900);
+    });
+    return;
+  }
+
   if (action === "resume") {
     await postJson("/api/resume", { network });
     poll();
@@ -380,7 +469,7 @@ document.getElementById("networks").addEventListener("click", async (e) => {
     const expires = expiresInput && expiresInput.value ? expiresInput.value : undefined;
     const result = await postJson(`/api/networks/${encodeURIComponent(network)}/invites`, { expires });
     if (result.ok) {
-      alert(`Invite key (single use):\n\n${result.invite_key}`);
+      showInviteQr(result.invite_key, `Invite key for "${network}" (single use)`);
       if (expiresInput) expiresInput.value = "";
       loadInvites(network);
     } else {
@@ -498,10 +587,13 @@ document.getElementById("create-form").addEventListener("submit", async (e) => {
   const result = await postJson("/api/networks", formToObject(form));
   const out = form.querySelector(".form-result");
   if (result.ok) {
-    out.textContent = `Created "${result.network}" — ${result.my_ip}${result.initial_invite_key ? ` — invite: ${result.initial_invite_key}` : ""}`;
+    out.textContent = `Created "${result.network}" — ${result.my_ip}`;
     out.className = "form-result success";
     form.reset();
     poll();
+    if (result.initial_invite_key) {
+      showInviteQr(result.initial_invite_key, `Invite key for "${result.network}" (single use)`);
+    }
   } else {
     out.textContent = result.error;
     out.className = "form-result error";

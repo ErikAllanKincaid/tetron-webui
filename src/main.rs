@@ -40,6 +40,9 @@ enum Command {
 const INDEX_HTML: &str = include_str!("../static/index.html");
 const STYLE_CSS: &str = include_str!("../static/style.css");
 const APP_JS: &str = include_str!("../static/app.js");
+// Vendored third-party QR encoder (MIT, kazuhikoarase/qrcode-generator) --
+// see static/vendor/qrcode.js's own header for provenance.
+const QRCODE_JS: &str = include_str!("../static/vendor/qrcode.js");
 
 async fn serve_index() -> axum::response::Html<&'static str> {
     axum::response::Html(INDEX_HTML)
@@ -51,6 +54,10 @@ async fn serve_css() -> impl axum::response::IntoResponse {
 
 async fn serve_js() -> impl axum::response::IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "application/javascript")], APP_JS)
+}
+
+async fn serve_qrcode_js() -> impl axum::response::IntoResponse {
+    ([(axum::http::header::CONTENT_TYPE, "application/javascript")], QRCODE_JS)
 }
 
 #[tokio::main]
@@ -67,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/", get(serve_index))
         .route("/style.css", get(serve_css))
         .route("/app.js", get(serve_js))
+        .route("/vendor/qrcode.js", get(serve_qrcode_js))
         // Phase 1: read-only status
         .route("/api/status", get(api::get_status))
         // Phase 2: low-stakes mutations

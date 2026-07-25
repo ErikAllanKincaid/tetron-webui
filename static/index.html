@@ -74,7 +74,16 @@
     </section>
   </main>
 
-  <footer id="footer" class="muted mono"></footer>
+  <footer id="footer" class="muted mono">
+    <span id="footer-traffic"></span>
+    <span id="footer-links">
+      <a href="https://github.com/ErikAllanKincaid/tetron" target="_blank" rel="noopener">tetron</a>
+      · <a href="https://github.com/ErikAllanKincaid/tetron-webui" target="_blank" rel="noopener">tetron-webui</a>
+      · <a href="https://github.com/ErikAllanKincaid/tetron/blob/main/docs/HOWTO.md" target="_blank" rel="noopener">docs</a>
+      · <a href="https://github.com/ErikAllanKincaid/tetron/releases/latest" target="_blank" rel="noopener">download tetron</a>
+      · <a href="https://github.com/ErikAllanKincaid/tetron-webui/releases/latest" target="_blank" rel="noopener">download webui</a>
+    </span>
+  </footer>
 
   <!-- Confirmation modal, reused for every destructive action (leave-as-
        sole-coordinator, kick, nuke). Never a bare browser confirm() -- those
@@ -91,6 +100,25 @@
     </div>
   </div>
 
+  <!-- Invite QR modal -- shown right after minting an invite (or creating a
+       network, which auto-mints one) since that is the only moment the raw
+       invite key is ever available; GET /api/networks/:name/invites never
+       returns it back (single-use secret, not stored for redisplay). Scan
+       with a phone camera or the future tetron Android client's own QR
+       scanner as a shortcut around retyping the bs58 code. -->
+  <div id="qr-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="qr-title">Invite key</h3>
+      <div id="qr-code"></div>
+      <p id="qr-code-text" class="mono qr-code-text"></p>
+      <div class="modal-actions">
+        <button id="qr-copy" class="btn-secondary">Copy</button>
+        <button id="qr-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/vendor/qrcode.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

@@ -131,6 +131,19 @@ header#header {
 }
 .icon-btn:hover { border-color: var(--accent); }
 
+.copy-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 2px;
+  margin-left: 4px;
+  line-height: 1;
+  vertical-align: middle;
+}
+.copy-btn:hover { color: var(--accent); }
+
 /* ---------------------------------------------------------------------
    Reading-width container. Never edge-to-edge on wide screens: width
    scales with the viewport up to a point, then a hard cap takes over so a
@@ -375,4 +388,30 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 .modal h3 { margin-top: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
+/* ---------------------------------------------------------------------
+   Invite QR modal. The SVG itself always paints a white background
+   (qrcode.js's createSvgTag) regardless of app theme -- a QR code needs
+   real contrast and a quiet zone to scan reliably, not theme-matched
+   colors -- so the wrapper gets a fixed white card behind it rather than
+   trusting --bg-raised, which is dark in dark mode.
+   --------------------------------------------------------------------- */
+
+#qr-code {
+  display: flex;
+  justify-content: center;
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 12px;
+}
+#qr-code svg { width: 100%; height: auto; max-width: 260px; }
+.qr-code-text {
+  word-break: break-all;
+  font-size: 0.8rem;
+  text-align: center;
+  margin: 12px 0 0;
+  user-select: all;
+}
+
 footer#footer { text-align: center; padding: 16px; font-size: 0.8rem; }
+footer#footer a { color: var(--text-muted); }
+footer#footer a:hover { color: var(--accent); }
