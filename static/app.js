@@ -172,12 +172,28 @@ detailClose.addEventListener("click", () => detailModal.classList.add("hidden"))
 // daemon's socket reappears.
 // -----------------------------------------------------------------------
 
-const POLL_INTERVAL_MS = 2000;
+// 2s was unusually aggressive for a human-watched dashboard (most
+// comparable tools poll in the 5-10s range); relaxed alongside the
+// Idiomorph switch above, which is what actually fixes the blink/focus-
+// loss this interval used to make worse by sheer frequency.
+const POLL_INTERVAL_MS = 10000;
 
 // Tracks which networks' admin <details> are currently open (by name)
-// across re-renders -- #networks' innerHTML is fully replaced every poll,
-// which would otherwise snap a manually-opened <details> shut every 2s.
+// across re-renders, so the `open` attribute in the HTML render() hands to
+// Idiomorph always matches reality -- kept explicit rather than trusting
+// Idiomorph to leave a DOM-native `open` state alone on its own, since the
+// exact attribute-preservation semantics for an attribute we simply never
+// mention either way aren't something to depend on implicitly.
 const adminOpenNetworks = new Set();
+// Cached invite list per network (by name), populated by loadInvites()
+// below. renderInviteList() reads from here instead of always starting at
+// a "Loading invites…" placeholder -- see that function's own comment.
+const inviteCache = new Map();
+// Which .admin-details elements already have a "toggle" listener attached
+// -- a WeakSet, not a DOM attribute, since Idiomorph strips any attribute
+// on a kept node that isn't part of the freshly-rendered HTML (see
+// render()'s own comment on this below).
+const toggleBoundDetails = new WeakSet();
 // Whether the create/join panel's <details> should default open: true
 // only until the user has at least one network, and only re-applied on
 // that specific reachable/empty -> non-empty transition (see render()) so
@@ -240,7 +256,10 @@ function renderPeerRow(net, peer) {
       ? `<button class="btn-small btn-danger" data-action="kick" data-net="${net.short_id}" data-peer="${peer.short_id}">kick</button>`
       : "";
   const ipv6 = peer.ipv6 ? `<span class="peer-ipv6">${peer.ipv6}${copyBtn(peer.ipv6)}</span>` : "";
-  return `<tr>
+  // id is required for reliable Idiomorph matching across polls (network
+  // + short_id scoped, since the same peer can appear in more than one
+  // network's table if we ever join several networks with a shared member).
+  return `<tr id="peer-${net.network}-${peer.short_id}">
     <td>${peer.role}</td>
     <td><span class="clickable-name" data-action="peer-detail" data-network="${net.network}" data-peer="${peer.endpoint_id}" title="Show full details">${peer.hostname || peer.ip}</span></td>
     <td class="mono">${peer.ip}${copyBtn(peer.ip)}${ipv6}</td>
@@ -283,18 +302,50 @@ function renderNukeActions(net, myShortId) {
 // server-side either, so there is nothing to show, not just something to
 // hide -- see the daemon's own coordinator_handle gate.
 function renderAdminDetails(net, myShortId, isOpen) {
-  return `<details class="admin-details" data-network="${net.network}" ${isOpen ? "open" : ""}>
+  // ids are required for Idiomorph to match these nodes reliably across
+  // polls (matters most for #admin-<net>, whose open/closed state and
+  // #invites-<net>, whose content must survive a morph untouched -- see
+  // renderInviteList below) and for #invite-expires-<net> specifically,
+  // since Idiomorph's focus-restore only re-finds the focused element by
+  // `id`, not by data-* attributes.
+  return `<details class="admin-details" id="admin-${net.network}" data-network="${net.network}" ${isOpen ? "open" : ""}>
     <summary>Admin</summary>
     <div class="action-row">
-      <input type="text" class="invite-expires-input" data-network="${net.network}" placeholder="expires (e.g. 24h, 7d -- optional)">
+      <input type="text" class="invite-expires-input" id="invite-expires-${net.network}" data-network="${net.network}" placeholder="expires (e.g. 24h, 7d -- optional)">
       <button class="btn-small" data-action="invite-create" data-network="${net.network}">mint invite</button>
     </div>
-    <div class="invite-list" data-network="${net.network}"><p class="muted">Loading invites…</p></div>
+    ${renderInviteList(net.network)}
     <div class="danger-zone">
       <div class="danger-zone-label">Danger zone</div>
       ${renderNukeActions(net, myShortId)}
     </div>
   </details>`;
+}
+
+// Renders from `inviteCache` when available instead of always starting at
+// a "Loading invites…" placeholder -- rendering the placeholder every poll
+// tick (even once the real list has already loaded) was what made an open
+// admin panel visibly flash back to "Loading…" and forward again every
+// ~2-10s, since render() regenerates this whole subtree's HTML on every
+// tick regardless of Idiomorph being in the loop (Idiomorph only avoids
+// touching the DOM when the *new* HTML we hand it already matches; it
+// can't know a "Loading…" string was never meant to overwrite real data).
+// loadInvites() below populates the cache; only a genuine first open (via
+// the toggle listener in render()) or an explicit invite create/revoke
+// action ever calls it -- not the poll cycle itself.
+function renderInviteList(network) {
+  const cached = inviteCache.get(network);
+  let body;
+  if (cached === undefined) {
+    body = `<p class="muted">Loading invites…</p>`;
+  } else if (cached.error) {
+    body = `<p class="muted">Could not load invites: ${cached.error}</p>`;
+  } else {
+    body = cached.length
+      ? cached.map((inv) => renderInviteRow({ network }, inv)).join("")
+      : `<p class="muted">No invites minted yet.</p>`;
+  }
+  return `<div class="invite-list" id="invites-${network}" data-network="${network}">${body}</div>`;
 }
 
 function formatEpoch(seconds) {
@@ -311,21 +362,22 @@ function renderInviteRow(net, invite) {
   </div>`;
 }
 
+// Populates inviteCache and immediately re-renders just the one invite-list
+// element from it (via a targeted Idiomorph morph, not a full #networks
+// rebuild) -- called on a genuine first open of an admin panel (the toggle
+// listener in render()) or right after an invite create/revoke action, never
+// from the poll cycle itself. That's what lets renderInviteList() show real
+// content on every subsequent poll instead of a repeating "Loading…" flash.
 async function loadInvites(network) {
-  const container = document.querySelector(`.invite-list[data-network="${CSS.escape(network)}"]`);
+  const container = document.getElementById(`invites-${network}`);
   if (!container) return;
   try {
     const result = await getJson(`/api/networks/${encodeURIComponent(network)}/invites`);
-    if (!result.ok) {
-      container.innerHTML = `<p class="muted">Could not load invites: ${result.error}</p>`;
-      return;
-    }
-    container.innerHTML = result.invites.length
-      ? result.invites.map((inv) => renderInviteRow({ network }, inv)).join("")
-      : `<p class="muted">No invites minted yet.</p>`;
+    inviteCache.set(network, result.ok ? result.invites : { error: result.error });
   } catch (e) {
-    container.innerHTML = `<p class="muted">Could not load invites: ${String(e)}</p>`;
+    inviteCache.set(network, { error: String(e) });
   }
+  Idiomorph.morph(container, renderInviteList(network), { morphStyle: "outerHTML" });
 }
 
 function renderNetworkRow(net, myShortId) {
@@ -344,7 +396,7 @@ function renderNetworkRow(net, myShortId) {
   // here) is always visible, never behind a click. Only the admin-only
   // actions below it are a dropdown, and only for a role that can actually
   // use them.
-  return `<div class="network-row" data-network="${net.network}">
+  return `<div class="network-row" id="network-${net.network}" data-network="${net.network}">
     <div class="network-summary">
       <span class="network-name clickable-name" data-action="network-detail" data-network="${net.network}" title="Show full details">${net.network}</span>
       <span class="network-role">${net.role}</span>
@@ -405,12 +457,13 @@ function render(status) {
   }
 
   // Skip rebuilding #networks entirely while the user has an active text
-  // selection inside it (e.g. mid-copy of an IP or endpoint id) -- the
-  // full innerHTML replacement below would otherwise destroy that
-  // selection on literally every 2s poll tick even though the underlying
-  // data usually hasn't changed. Every other status-driven update above
-  // this guard still runs; only this one subtree is frozen for this tick,
-  // and the very next poll retries once the selection clears. The copy
+  // selection inside it (e.g. mid-copy of an IP or endpoint id). Idiomorph
+  // (below) already avoids touching most unchanged nodes, but a plain text
+  // selection isn't tied to any one element the way input focus is, so it
+  // has no equivalent "restore" step -- morphing a node a selection spans
+  // could still disrupt it. Every other status-driven update above this
+  // guard still runs; only this one subtree is frozen for this tick, and
+  // the very next poll retries once the selection clears. The copy
   // buttons (copyBtn(), above) are the complementary fix for the common
   // case where nothing needs manual selection at all.
   if (selectionInside(container)) return;
@@ -418,21 +471,41 @@ function render(status) {
   if (isEmpty) {
     container.innerHTML = '<p class="muted">No networks yet -- create or join one above.</p>';
   } else {
-    container.innerHTML = status.networks.map((n) => renderNetworkRow(n, status.endpoint_short)).join("");
+    // Idiomorph.morph diffs the container's *children* against this new
+    // HTML and only touches DOM nodes that actually changed (matched by
+    // `id` where present) -- unlike the old `innerHTML =` this replaced,
+    // an unchanged network/peer/admin-panel subtree is left completely
+    // alone on a poll tick, which is what actually fixes the admin panel's
+    // invite-list flash and the invite-expires input losing focus while
+    // typing (Idiomorph's default `restoreFocus: true` re-finds and
+    // refocuses the previously-active input by `id` after morphing) --
+    // `ignoreActiveValue: true` is required alongside it: our templates
+    // never set a `value` attribute on the invite-expires input, so
+    // without this Idiomorph would still reset the *focused* input's
+    // live value to empty on every poll even with focus itself restored
+    // correctly (found live-testing this fix, not just theoretical).
+    Idiomorph.morph(
+      container,
+      status.networks.map((n) => renderNetworkRow(n, status.endpoint_short)).join(""),
+      { morphStyle: "innerHTML", ignoreActiveValue: true },
+    );
     // <details>' native "toggle" event does not bubble, so it cannot be
     // handled by the single delegated click listener below (the delegated
     // listener catches clicks on the <summary>'s underlying activation,
     // but that fires before the browser's own open/close default action
-    // has actually run) -- attach directly per row instead. Cheap: only
-    // ever as many admin rows as networks, and #networks' entire subtree
-    // is already being freshly rebuilt this same tick anyway.
+    // has actually run) -- attach directly per row instead. With Idiomorph
+    // in the loop an already-bound <details> node persists across polls
+    // (it's the same DOM node, not a fresh one every tick), so guard
+    // against attaching a second listener to it on the next poll -- via a
+    // JS-side WeakSet, not a `dataset`/DOM attribute marker: Idiomorph
+    // strips any attribute present on the old node but absent from the
+    // freshly-rendered HTML string on every morph, so a `data-*` marker
+    // set only via JS (never part of the template) gets silently wiped on
+    // the very next poll, defeating the guard and re-accumulating a fresh
+    // duplicate listener every tick (found while testing this fix).
     container.querySelectorAll(".admin-details").forEach((details) => {
-      // The whole #networks subtree is rebuilt every poll tick, so an
-      // already-open admin panel is a brand-new <details open> element
-      // each time -- its invite-list placeholder needs reloading here,
-      // not just on a user-driven toggle (a freshly created already-open
-      // element never fires "toggle").
-      if (details.open) loadInvites(details.dataset.network);
+      if (toggleBoundDetails.has(details)) return;
+      toggleBoundDetails.add(details);
       details.addEventListener("toggle", () => {
         if (details.open) {
           adminOpenNetworks.add(details.dataset.network);

@@ -55,6 +55,9 @@ const QRCODE_JS: &str = include_str!("../static/vendor/qrcode.js");
 // Reuses tetron-systray's own icon unmodified -- see static/favicon.svg's
 // own header for provenance.
 const FAVICON_SVG: &str = include_str!("../static/favicon.svg");
+// Vendored third-party DOM diffing (Zero-Clause BSD, bigskysoftware/idiomorph)
+// -- see static/vendor/idiomorph.js's own header for provenance.
+const IDIOMORPH_JS: &str = include_str!("../static/vendor/idiomorph.js");
 
 async fn serve_index() -> axum::response::Html<&'static str> {
     axum::response::Html(INDEX_HTML)
@@ -74,6 +77,10 @@ async fn serve_qrcode_js() -> impl axum::response::IntoResponse {
 
 async fn serve_favicon() -> impl axum::response::IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], FAVICON_SVG)
+}
+
+async fn serve_idiomorph_js() -> impl axum::response::IntoResponse {
+    ([(axum::http::header::CONTENT_TYPE, "application/javascript")], IDIOMORPH_JS)
 }
 
 #[tokio::main]
@@ -96,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/app.js", get(serve_js))
         .route("/vendor/qrcode.js", get(serve_qrcode_js))
         .route("/favicon.svg", get(serve_favicon))
+        .route("/vendor/idiomorph.js", get(serve_idiomorph_js))
         // Phase 1: read-only status
         .route("/api/status", get(api::get_status))
         // Phase 2: low-stakes mutations
