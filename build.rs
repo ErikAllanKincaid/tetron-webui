@@ -17,6 +17,7 @@ fn main() {
     println!("cargo:rerun-if-changed=static/style.css");
     println!("cargo:rerun-if-changed=static/app.js");
     println!("cargo:rerun-if-changed=static/vendor/qrcode.js");
+    println!("cargo:rerun-if-changed=static/favicon.svg");
 
     let sha = Command::new("git")
         .args(["rev-parse", "--short=8", "HEAD"])

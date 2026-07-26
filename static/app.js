@@ -137,6 +137,34 @@ function showInviteQr(inviteKey, title) {
 }
 
 // -----------------------------------------------------------------------
+// Detail popover -- shown when clicking a peer's hostname or a network's
+// name. Both are a superset of fields already in the polled /api/status
+// JSON that just never had anywhere to be shown (endpoint_id, network_key)
+// -- purely a frontend reveal, no new backend data.
+// -----------------------------------------------------------------------
+
+const detailModal = document.getElementById("detail-modal");
+const detailTitle = document.getElementById("detail-title");
+const detailBody = document.getElementById("detail-body");
+const detailClose = document.getElementById("detail-close");
+
+function detailRow(label, value, copyable) {
+  const val = value || "(none)";
+  return `<div class="detail-row">
+    <span class="detail-label">${label}</span>
+    <span class="detail-value mono">${val}${copyable && value ? copyBtn(value) : ""}</span>
+  </div>`;
+}
+
+function showDetail(title, rows) {
+  detailTitle.textContent = title;
+  detailBody.innerHTML = rows.map((r) => detailRow(r.label, r.value, r.copyable)).join("");
+  detailModal.classList.remove("hidden");
+}
+
+detailClose.addEventListener("click", () => detailModal.classList.add("hidden"));
+
+// -----------------------------------------------------------------------
 // Status polling (Phase 1). This is also the entire "reconnect after a
 // daemon restart" story: every poll independently reconnects via
 // tetron-webui's own backend, so there is no persistent connection on this
@@ -162,12 +190,14 @@ function setHeader(status) {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
   const info = document.getElementById("endpoint-info");
+  const traffic = document.getElementById("header-traffic");
 
   dot.className = "dot";
   if (!status.reachable) {
     dot.classList.add("dot-unknown");
     text.textContent = "daemon unreachable";
     info.textContent = status.message || "";
+    traffic.textContent = "";
     return;
   }
   if (status.active) {
@@ -178,6 +208,9 @@ function setHeader(status) {
     text.textContent = "tetron is on standby";
   }
   info.textContent = `${status.endpoint_short}  ·  v${status.daemon_version}`;
+  // Right next to "is it active" -- a live indicator of *how* active,
+  // not tucked at the bottom of the page under the network list.
+  traffic.textContent = `↑${formatBytes(status.traffic.bytes_tx)} ↓${formatBytes(status.traffic.bytes_rx)}`;
 }
 
 function formatBytes(n) {
@@ -209,7 +242,7 @@ function renderPeerRow(net, peer) {
   const ipv6 = peer.ipv6 ? `<span class="peer-ipv6">${peer.ipv6}${copyBtn(peer.ipv6)}</span>` : "";
   return `<tr>
     <td>${peer.role}</td>
-    <td>${peer.hostname || peer.ip}</td>
+    <td><span class="clickable-name" data-action="peer-detail" data-network="${net.network}" data-peer="${peer.endpoint_id}" title="Show full details">${peer.hostname || peer.ip}</span></td>
     <td class="mono">${peer.ip}${copyBtn(peer.ip)}${ipv6}</td>
     <td class="mono">${status}</td>
     <td>${kickBtn}</td>
@@ -313,7 +346,7 @@ function renderNetworkRow(net, myShortId) {
   // use them.
   return `<div class="network-row" data-network="${net.network}">
     <div class="network-summary">
-      <span class="network-name">${net.network}</span>
+      <span class="network-name clickable-name" data-action="network-detail" data-network="${net.network}" title="Show full details">${net.network}</span>
       <span class="network-role">${net.role}</span>
       <span class="network-members">${online}/${net.peers.length + 1}</span>
       ${standbyBadge}
@@ -351,13 +384,9 @@ function render(status) {
   const container = document.getElementById("networks");
 
   if (!status.reachable) {
-    document.getElementById("footer-traffic").textContent = "";
     if (!selectionInside(container)) container.innerHTML = "";
     return;
   }
-
-  document.getElementById("footer-traffic").textContent =
-    `↑${formatBytes(status.traffic.bytes_tx)} ↓${formatBytes(status.traffic.bytes_rx)}  ·  `;
 
   // Networks-first once at least one exists (see style.css's
   // body.has-networks rule) -- the create/join forms are the primary
@@ -445,6 +474,45 @@ document.getElementById("networks").addEventListener("click", async (e) => {
       el.textContent = "✓";
       setTimeout(() => { el.textContent = original; }, 900);
     });
+    return;
+  }
+
+  if (action === "network-detail") {
+    const net = lastStatus?.networks.find((n) => n.network === network);
+    if (!net) return;
+    const rows = [
+      { label: "role", value: net.role },
+      { label: "interface", value: net.tun_name },
+      { label: "members", value: String(net.member_count) },
+      { label: "my ip", value: net.my_ip, copyable: true },
+      { label: "my ipv6", value: net.my_ipv6, copyable: true },
+    ];
+    // network_key is admin-gated, matching `tetron status`'s own text-view
+    // convention (AGENTS.md's "Network/peer identifier resolution" section)
+    // -- a plain member can't act on it anyway (nuke/kick both need it, and
+    // both are already admin-only actions).
+    if (net.role === "admin") {
+      rows.push({ label: "network key", value: net.network_key, copyable: true });
+    }
+    showDetail(net.network, rows);
+    return;
+  }
+
+  if (action === "peer-detail") {
+    const net = lastStatus?.networks.find((n) => n.network === network);
+    const peer = net?.peers.find((p) => p.endpoint_id === el.dataset.peer);
+    if (!peer) return;
+    const conn = peer.connection;
+    const connSummary = conn
+      ? `${conn.conn_type.toLowerCase()} · ${conn.rtt_ms != null ? conn.rtt_ms.toFixed(0) + "ms" : "?"} · ↑${formatBytes(conn.bytes_tx)} ↓${formatBytes(conn.bytes_rx)}`
+      : "offline";
+    showDetail(peer.hostname || peer.ip, [
+      { label: "role", value: peer.role },
+      { label: "endpoint id", value: peer.endpoint_id, copyable: true },
+      { label: "ip", value: peer.ip, copyable: true },
+      { label: "ipv6", value: peer.ipv6, copyable: true },
+      { label: "connection", value: connSummary },
+    ]);
     return;
   }
 

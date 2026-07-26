@@ -52,6 +52,9 @@ const APP_JS: &str = include_str!("../static/app.js");
 // Vendored third-party QR encoder (MIT, kazuhikoarase/qrcode-generator) --
 // see static/vendor/qrcode.js's own header for provenance.
 const QRCODE_JS: &str = include_str!("../static/vendor/qrcode.js");
+// Reuses tetron-systray's own icon unmodified -- see static/favicon.svg's
+// own header for provenance.
+const FAVICON_SVG: &str = include_str!("../static/favicon.svg");
 
 async fn serve_index() -> axum::response::Html<&'static str> {
     axum::response::Html(INDEX_HTML)
@@ -67,6 +70,10 @@ async fn serve_js() -> impl axum::response::IntoResponse {
 
 async fn serve_qrcode_js() -> impl axum::response::IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "application/javascript")], QRCODE_JS)
+}
+
+async fn serve_favicon() -> impl axum::response::IntoResponse {
+    ([(axum::http::header::CONTENT_TYPE, "image/svg+xml")], FAVICON_SVG)
 }
 
 #[tokio::main]
@@ -88,6 +95,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/style.css", get(serve_css))
         .route("/app.js", get(serve_js))
         .route("/vendor/qrcode.js", get(serve_qrcode_js))
+        .route("/favicon.svg", get(serve_favicon))
         // Phase 1: read-only status
         .route("/api/status", get(api::get_status))
         // Phase 2: low-stakes mutations

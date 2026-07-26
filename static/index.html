@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>tetron</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -14,6 +15,7 @@
     <div class="header-left">
       <span id="status-dot" class="dot dot-unknown"></span>
       <span id="status-text">connecting…</span>
+      <span id="header-traffic" class="muted mono"></span>
     </div>
     <div class="header-right">
       <span id="endpoint-info" class="muted mono"></span>
@@ -75,7 +77,6 @@
   </main>
 
   <footer id="footer" class="muted mono">
-    <span id="footer-traffic"></span>
     <span id="footer-links">
       <a href="https://github.com/ErikAllanKincaid/tetron" target="_blank" rel="noopener">tetron</a>
       · <a href="https://github.com/ErikAllanKincaid/tetron-webui" target="_blank" rel="noopener">tetron-webui</a>
@@ -114,6 +115,21 @@
       <div class="modal-actions">
         <button id="qr-copy" class="btn-secondary">Copy</button>
         <button id="qr-close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail popover: reused for both "click a peer's hostname" and
+       "click a network's name" -- both just show a superset of already-
+       polled fields (endpoint_id / network_key etc.) that never had
+       anywhere to be shown before. No new backend data, purely a frontend
+       reveal. -->
+  <div id="detail-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="detail-title"></h3>
+      <div id="detail-body"></div>
+      <div class="modal-actions">
+        <button id="detail-close">Close</button>
       </div>
     </div>
   </div>

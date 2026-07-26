@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  tetron-webui favicon: reuses tetron-systray's own icon unmodified, for
+  cross-product visual consistency -- a green status dot with a capital "T"
+  glyph, reproduced from that repo's tray-icon generator (src/main.rs's
+  solid_icon()/icon_for(), "active"/green state). See that file's own
+  header comment (~/code/tetron-systray/images/icon.svg) for the full
+  geometry provenance. Copy, not a symlink or build-time fetch, since this
+  crate's static assets are embedded via include_str! at compile time
+  (see main.rs's serve_favicon route) -- there is no runtime filesystem
+  access to reach across repos.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <circle cx="15.5" cy="15.5" r="12" fill="#4CAF50"/>
+  <rect x="10" y="8" width="11" height="3" fill="#FFFFFF"/>
+  <rect x="13.75" y="11" width="3.5" height="12" fill="#FFFFFF"/>
+</svg>
