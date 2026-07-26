@@ -68,6 +68,22 @@ tetron-webui install
 
 If a `tetron-proto` change actually adds a capability you want to use (a new field, a new IPC op), you need the matching webui release that was built against it — check `tetron-webui`'s own releases page. webui's version number tracks tetron core's current minor (e.g. webui `0.9.x` targets tetron `0.9`), so matching the daemon's minor version is a reasonable rule of thumb if you want to be sure you're not missing something, even though it isn't strictly required for things to keep working.
 
+## Uninstalling
+
+```bash
+tetron-webui uninstall
+```
+
+Stops and removes the `systemd --user` unit (`~/.config/systemd/user/tetron-webui.service` on Linux) or launchd LaunchAgent (`~/Library/LaunchAgents/com.tetron.webui.plist` on macOS). **Deliberately leaves the binary itself in place** (wherever you installed it — `/usr/local/bin/tetron-webui` if you followed the install steps above): `uninstall` only knows how to tear down the service it registered, not delete its own currently-running executable. Remove it yourself if you want it fully gone:
+
+```bash
+sudo rm /usr/local/bin/tetron-webui
+```
+
+**Logs are also left in place**, on both platforms: Linux writes to the systemd user journal (`journalctl --user -u tetron-webui`), which isn't a file this project owns and ages out via your system's normal journal retention; macOS writes to `~/Library/Logs/tetron-webui.log`, a plain file you can delete by hand if you want.
+
+**If you only ever ran `cargo run` (or the bare binary) in a terminal and never ran `tetron-webui install`**, there's no service to remove at all — nothing was ever registered with `systemctl`/`launchctl`. Just stop the terminal process (Ctrl-C).
+
 ## Architecture
 
 ```
