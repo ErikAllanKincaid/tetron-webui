@@ -51,15 +51,11 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 
 Re-run the same install steps with a fresh binary:
 
-Overwrite the old binary at the same path.
-
-Re-registers the service and restarts it on the new binary
-
 ```bash
 curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
 chmod +x tetron-webui
-sudo install tetron-webui /usr/local/bin/tetron-webui
-tetron-webui install
+sudo install tetron-webui /usr/local/bin/tetron-webui   # overwrite the old binary at the same path
+tetron-webui install                                     # re-registers the service and restarts it on the new binary
 ```
 
 `install` is idempotent and safe to run over an already-running instance, it rewrites the unit/plist (in case the binary path changed) and explicitly restarts the service, so the new binary takes over immediately rather than waiting for the next reboot or a manual kill.
@@ -96,12 +92,7 @@ The invite QR code is generated entirely client-side — `static/vendor/qrcode.j
 
 ## Building your own version of this
 
-**[`docs/HOWTO_Build_A_WebUI.md`](docs/HOWTO_Build_A_WebUI.md)** — a generic,
-instructional writeup of the pattern this is built on (a thin HTTP server
-proxying a browser to a local daemon's IPC socket, with a static
-framework-free frontend), with real references and worked examples from
-this repo's own source. Useful if you're building something similar, not
-just historical context for this one project.
+**[`docs/HOWTO_Build_A_WebUI.md`](docs/HOWTO_Build_A_WebUI.md)** — a generic, instructional writeup of the pattern this is built on (a thin HTTP server proxying a browser to a local daemon's IPC socket, with a static framework-free frontend), with real references and worked examples from this repo's own source. Useful if you're building something similar, not just historical context for this one project.
 
 ## License
 
