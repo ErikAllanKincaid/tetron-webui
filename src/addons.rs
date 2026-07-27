@@ -22,6 +22,15 @@ pub struct AddonSpec {
     pub display_name: &'static str,
     pub description: &'static str,
     pub github_repo: &'static str,
+    /// Whether this addon is a single downloadable release binary this
+    /// webui can fetch/verify/install/uninstall itself. `false` for addons
+    /// that are a whole environment or a script run against a remote host
+    /// (tetron-relay, tetron-testsuite) rather than a per-user local
+    /// service -- these show up as a name/description/repo-link row only,
+    /// with no install/uninstall action and no `is_active`/binary-path
+    /// machinery invoked on their behalf (the fields below are unused and
+    /// left as placeholders when this is `false`).
+    pub installable: bool,
     pub binary_name: &'static str,
     /// systemd --user unit name (Linux), matching whatever the addon's own
     /// `install` subcommand registers (its own `service.rs`). Unread on
@@ -41,22 +50,49 @@ pub struct AddonSpec {
     pub needs_display: bool,
 }
 
-pub const ADDONS: &[AddonSpec] = &[AddonSpec {
-    id: "systray",
-    display_name: "Systray",
-    description: "Menu-bar tray icon with per-network status and quick actions.",
-    github_repo: "ErikAllanKincaid/tetron-systray",
-    binary_name: "tetron-systray",
-    linux_unit: "tetron-systray",
-    macos_label: "com.tetron.systray",
-    needs_display: true,
-}];
+pub const ADDONS: &[AddonSpec] = &[
+    AddonSpec {
+        id: "systray",
+        display_name: "Systray",
+        description: "Menu-bar tray icon with per-network status and quick actions.",
+        github_repo: "ErikAllanKincaid/tetron-systray",
+        installable: true,
+        binary_name: "tetron-systray",
+        linux_unit: "tetron-systray",
+        macos_label: "com.tetron.systray",
+        needs_display: true,
+    },
+    AddonSpec {
+        id: "relay",
+        display_name: "Relay",
+        description: "Bringup tool that turns a plain Linux server into a self-hosted iroh relay for your fleet's NAT-traversal fallback.",
+        github_repo: "ErikAllanKincaid/tetron-relay",
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        needs_display: false,
+    },
+    AddonSpec {
+        id: "testsuite",
+        display_name: "Test Suite",
+        description: "VM-based automated test suite that drives tetron through its own CLI to assert on real network behavior.",
+        github_repo: "ErikAllanKincaid/tetron-testsuite",
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        needs_display: false,
+    },
+];
 
 #[derive(Serialize)]
 pub struct AddonStatus {
     pub id: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
+    pub github_repo: &'static str,
+    pub installable: bool,
     pub installed: bool,
 }
 
@@ -111,11 +147,17 @@ async fn is_active(_spec: &AddonSpec) -> bool {
 pub async fn list_status() -> Vec<AddonStatus> {
     let mut out = Vec::with_capacity(ADDONS.len());
     for spec in ADDONS {
+        // A link-only addon has no unit/label to check -- skip the
+        // shell-out entirely rather than querying systemd/launchd about a
+        // service that was never registered under an empty name.
+        let installed = spec.installable && is_active(spec).await;
         out.push(AddonStatus {
             id: spec.id,
             display_name: spec.display_name,
             description: spec.description,
-            installed: is_active(spec).await,
+            github_repo: spec.github_repo,
+            installable: spec.installable,
+            installed,
         });
     }
     out
@@ -201,6 +243,12 @@ fn has_display() -> bool {
 /// `contrib/install-tetron-suite.sh` run would leave.
 pub async fn install(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
+    anyhow::ensure!(
+        spec.installable,
+        "{} is not a locally installable addon -- see https://github.com/{} for setup instructions",
+        spec.display_name,
+        spec.github_repo
+    );
     let display_caveat = spec.needs_display && !has_display();
     let suffix = asset_suffix()?;
     let asset = format!("{}-{suffix}", spec.binary_name);
@@ -281,6 +329,12 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
 /// distinctly rather than surfaced as a full failure of the whole action.
 pub async fn uninstall(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
+    anyhow::ensure!(
+        spec.installable,
+        "{} is not a locally installable addon -- see https://github.com/{} for setup instructions",
+        spec.display_name,
+        spec.github_repo
+    );
     let dest = binary_path(spec)?;
     anyhow::ensure!(dest.exists(), "{} is not installed", spec.display_name);
     run_ok(Command::new(&dest).arg("uninstall")).await?;

@@ -66,8 +66,9 @@
     <!-- Host-level, not tied to any one network -- collapsed by default,
          same disclosure pattern as create-join-panel above and each
          network's own admin-details. Populated entirely by app.js from
-         /api/addons; the row shape (name/description/status/button) is
-         addon-agnostic, so a second addon needs no HTML changes here. -->
+         /api/addons; the row shape (name/description/repo-link, plus a
+         status/button pair for installable addons) is addon-agnostic, so
+         a new addon needs no HTML changes here. -->
     <section id="addons-panel" class="panel">
       <details id="addons-details">
         <summary>Add-ons</summary>

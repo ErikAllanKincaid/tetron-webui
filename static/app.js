@@ -765,6 +765,21 @@ document.getElementById("join-form").addEventListener("submit", async (e) => {
 // -----------------------------------------------------------------------
 
 function renderAddonRow(addon) {
+  const repoLink = `<a class="addon-link" href="https://github.com/${addon.github_repo}" target="_blank" rel="noopener">${addon.github_repo}</a>`;
+
+  // Link-only addons (a script run against a remote host, or a whole VM
+  // environment) have no local install/uninstall action -- just the name,
+  // description, and a link out to the repo for their own setup steps.
+  if (!addon.installable) {
+    return `<div class="addon-row" data-addon="${addon.id}">
+      <div class="addon-info">
+        <span class="addon-name">${addon.display_name}</span>
+        <p class="muted addon-description">${addon.description}</p>
+        <p class="addon-repo">${repoLink}</p>
+      </div>
+    </div>`;
+  }
+
   const action = addon.installed ? "uninstall" : "install";
   const label = addon.installed ? "Uninstall" : "Install";
   const btnClass = addon.installed ? "btn-secondary" : "";
@@ -773,6 +788,7 @@ function renderAddonRow(addon) {
       <span class="addon-name">${addon.display_name}</span>
       <span class="addon-status ${addon.installed ? "installed" : "not-installed"}">${addon.installed ? "installed" : "not installed"}</span>
       <p class="muted addon-description">${addon.description}</p>
+      <p class="addon-repo">${repoLink}</p>
     </div>
     <div class="addon-actions">
       <button class="btn-small ${btnClass}" data-action="${action}" data-addon="${addon.id}">${label}</button>

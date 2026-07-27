@@ -363,6 +363,9 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 .addon-status { font-size: 0.8rem; color: var(--text-muted); }
 .addon-status.installed { color: var(--status-active); }
 .addon-description { margin: 4px 0 0; font-size: 0.85rem; }
+.addon-repo { margin: 2px 0 0; font-size: 0.8rem; }
+.addon-link { color: var(--text-muted); text-decoration: none; }
+.addon-link:hover { color: var(--accent); }
 .addon-actions { flex: 0 0 auto; }
 .addon-row .form-result { flex-basis: 100%; margin: 4px 0 0; }
 
