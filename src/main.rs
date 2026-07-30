@@ -15,13 +15,25 @@ use axum::routing::{delete, get, post};
 use axum::Router;
 use clap::{Parser, Subcommand};
 
-const BIND_ADDR: &str = "127.0.0.1:7870";
+/// Default port the web server listens on. Override via `TETRON_WEBUI_PORT`
+/// env var (both the server and downstream consumers like tetron-systray
+/// read the same var), or via `tetron-webui install --port <n>`.
+pub(crate) const DEFAULT_PORT: u16 = 7870;
 
 /// Full version string: the crate version plus the git short SHA stamped in
 /// by `build.rs` (e.g. `0.8.4 (a1b2c3d4)`). The SHA distinguishes two builds
 /// that share the same, unbumped crate version -- same pattern as tetron
 /// core's own `FULL_VERSION`.
 pub(crate) const FULL_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_SHA"), ")");
+
+/// Resolve the web server's listen port. Reads `TETRON_WEBUI_PORT` from the
+/// environment; falls back to `DEFAULT_PORT` if unset or unparsable.
+pub(crate) fn resolve_port() -> u16 {
+    std::env::var("TETRON_WEBUI_PORT")
+        .ok()
+        .and_then(|v| v.parse::<u16>().ok())
+        .unwrap_or(DEFAULT_PORT)
+}
 
 #[derive(Parser)]
 #[command(name = "tetron-webui", version = FULL_VERSION)]
@@ -35,7 +47,13 @@ enum Command {
     /// Install and start the per-user service (systemd --user on Linux,
     /// a launchd LaunchAgent on macOS) so tetron-webui runs at login
     /// instead of needing a terminal kept open
-    Install,
+    Install {
+        /// Port to bind the web server on. Also sets `TETRON_WEBUI_PORT`
+        /// in the service unit so downstream consumers (tetron-systray)
+        /// discover the correct URL.
+        #[arg(short = 'p', long, env = "TETRON_WEBUI_PORT", default_value_t = DEFAULT_PORT)]
+        port: u16,
+    },
     /// Stop and remove the per-user service
     Uninstall,
     /// Print the tetron-webui version
@@ -87,7 +105,7 @@ async fn serve_idiomorph_js() -> impl axum::response::IntoResponse {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Some(Command::Install) => return service::install(),
+        Some(Command::Install { port }) => return service::install(port),
         Some(Command::Uninstall) => return service::uninstall(),
         Some(Command::Version) => {
             println!("tetron-webui {FULL_VERSION}");
@@ -130,8 +148,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/addons/{id}/install", post(api::addon_install))
         .route("/api/addons/{id}/uninstall", post(api::addon_uninstall));
 
-    let listener = tokio::net::TcpListener::bind(BIND_ADDR).await?;
-    eprintln!("tetron-webui listening on http://{BIND_ADDR}");
+    let port = resolve_port();
+    let addr = format!("127.0.0.1:{port}");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    eprintln!("tetron-webui listening on http://{addr}");
     axum::serve(listener, app).await?;
     Ok(())
 }

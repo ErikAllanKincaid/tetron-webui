@@ -65,18 +65,24 @@ fn log_path() -> Result<PathBuf> {
 /// user invoked -- same idempotent-on-every-install pattern tetron's own
 /// `ensure_service_installed` uses), enable it, and wait for the HTTP
 /// server to actually come up before declaring success.
-pub fn install() -> Result<()> {
+///
+/// The port is injected into the service unit as `TETRON_WEBUI_PORT` so the
+/// running server and downstream consumers (tetron-systray) see the same
+/// port.
+pub fn install(port: u16) -> Result<()> {
     println!("installing tetron-webui {}", crate::FULL_VERSION);
     let exe = std::env::current_exe()
         .context("failed to determine current executable path")?
         .to_string_lossy()
         .into_owned();
+    let port_str = port.to_string();
 
     #[cfg(target_os = "linux")]
     {
         let path = unit_path()?;
-        let unit =
-            include_str!("../contrib/tetron-webui.service").replace("/usr/local/bin/tetron-webui", &exe);
+        let unit = include_str!("../contrib/tetron-webui.service")
+            .replace("/usr/local/bin/tetron-webui", &exe)
+            .replace("__TETRON_WEBUI_PORT__", &port_str);
         std::fs::write(&path, unit).with_context(|| format!("failed to write {}", path.display()))?;
         run_cmd("systemctl", &["--user", "daemon-reload"]);
         run_cmd("systemctl", &["--user", "enable", "tetron-webui"]);
@@ -93,7 +99,8 @@ pub fn install() -> Result<()> {
         let log = log_path()?.to_string_lossy().into_owned();
         let plist = include_str!("../contrib/com.tetron.webui.plist")
             .replace("/usr/local/bin/tetron-webui", &exe)
-            .replace("/tmp/tetron-webui.log", &log);
+            .replace("/tmp/tetron-webui.log", &log)
+            .replace("__TETRON_WEBUI_PORT__", &port_str);
         std::fs::write(&path, plist).with_context(|| format!("failed to write {}", path.display()))?;
         // Tear down any previously loaded job (e.g. one pointing at a stale
         // binary path) before loading the freshly written plist -- same
@@ -106,12 +113,12 @@ pub fn install() -> Result<()> {
     anyhow::bail!("per-user service install not supported on this platform");
 
     eprintln!("waiting for tetron-webui to come up…");
-    if wait_for_http(Duration::from_secs(10)) {
-        println!("tetron-webui service installed and running on http://127.0.0.1:7870");
+    if wait_for_http(port, Duration::from_secs(10)) {
+        println!("tetron-webui service installed and running on http://127.0.0.1:{port}");
         Ok(())
     } else {
         anyhow::bail!(
-            "service was installed but tetron-webui never became reachable on http://127.0.0.1:7870.\n\
+            "service was installed but tetron-webui never became reachable on http://127.0.0.1:{port}.\n\
              Check the service logs (journalctl --user -u tetron-webui on Linux, or the log path in the plist on macOS)."
         );
     }
@@ -152,10 +159,11 @@ pub fn uninstall() -> Result<()> {
     }
 }
 
-fn wait_for_http(timeout: Duration) -> bool {
+fn wait_for_http(port: u16, timeout: Duration) -> bool {
+    let addr = format!("127.0.0.1:{port}");
     let deadline = Instant::now() + timeout;
     loop {
-        if std::net::TcpStream::connect("127.0.0.1:7870").is_ok() {
+        if std::net::TcpStream::connect(&addr).is_ok() {
             return true;
         }
         if Instant::now() >= deadline {

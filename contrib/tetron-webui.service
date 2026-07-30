@@ -4,6 +4,7 @@ After=network-online.target
 
 [Service]
 Type=simple
+Environment=TETRON_WEBUI_PORT=__TETRON_WEBUI_PORT__
 ExecStart=/usr/local/bin/tetron-webui
 Restart=on-failure
 RestartSec=5

@@ -34,12 +34,29 @@ curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/
 chmod +x tetron-webui
 sudo install tetron-webui /usr/local/bin/tetron-webui
 
-tetron-webui install     # sets up + starts a per-user service, no sudo needed for this step
+tetron-webui install --port 7870     # optionally change the port (see below)
 ```
 
 Installs a `systemd --user` unit on Linux (`~/.config/systemd/user/tetron-webui.service`) or a launchd **LaunchAgent** on macOS (`~/Library/LaunchAgents/com.tetron.webui.plist`, distinct from a system-wide LaunchDaemon — this runs inside your login session, not root). `Restart=on-failure`/`KeepAlive` means it comes back automatically if it crashes. `install` points the service at whatever binary you ran it from — install it somewhere permanent first (as above) if you want the service to survive that binary being deleted. `tetron-webui uninstall` stops and removes it. Verified end to end on real hardware on both platforms: install, crash-recovery (`kill -9` the process, confirmed the service manager restarts it within seconds), and uninstall all leave the machine clean.
 
-Then open `http://127.0.0.1:7870`. Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
+Then open `http://127.0.0.1:7870` (or whatever port you chose). Requires a running `tetron` daemon (`sudo tetron install`) reachable at its usual Unix socket. Read-only status works for any local user; mutating actions (create/join/leave/kick/nuke/etc.) require the browsing user to be tetron's configured operator (`sudo tetron set-operator <user>`) or root — same authorization model the CLI uses.
+
+### Port configuration
+
+The web server binds `127.0.0.1:7870` by default. Override it with the
+`TETRON_WEBUI_PORT` environment variable, or with `--port` when installing:
+
+```bash
+tetron-webui install --port 8080
+
+# or set the env var before running the server directly:
+TETRON_WEBUI_PORT=8080 tetron-webui
+```
+
+Downstream consumers like [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray)
+read the same `TETRON_WEBUI_PORT` env var to discover the dashboard URL.
+If you install both as services, pass the same `--port` to each `install`
+command so both service units carry the variable.
 
 ### Building from source / development
 

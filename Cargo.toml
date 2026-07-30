@@ -1,6 +1,6 @@
 [package]
 name = "tetron-webui"
-version = "0.9.1"
+version = "0.9.2"
 edition = "2024"
 rust-version = "1.91"
 license = "MPL-2.0"
@@ -20,7 +20,7 @@ path = "src/main.rs"
 tetron-proto = { git = "https://github.com/ErikAllanKincaid/tetron" }
 # `install`/`uninstall` subcommands for the per-user service. Same crates/
 # versions tetron's own CLI uses.
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 dirs = "6.0.0"
 # Needed directly for EndpointId (used decoding an invite code) -- version
 # must track tetron-proto's own pin so Cargo resolves both to the same
