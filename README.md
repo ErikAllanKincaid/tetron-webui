@@ -6,6 +6,17 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ![tetron-webui dashboard](images/tetron-webui_screenshot.png)
 
+## File locations
+
+| What | Default path |
+|---|---|
+| **Binary** | `/usr/local/bin/tetron-webui` (or wherever you place it) |
+| **Linux service unit** | `~/.config/systemd/user/tetron-webui.service` |
+| **macOS LaunchAgent** | `~/Library/LaunchAgents/com.tetron.webui.plist` |
+| **Linux logs** | systemd user journal (`journalctl --user -u tetron-webui`) |
+| **macOS logs** | `~/Library/Logs/tetron-webui.log` |
+| **Config** | None — everything comes via IPC from the tetron daemon |
+
 ## Running it
 
 **Primary path: download a pre-built binary.**
