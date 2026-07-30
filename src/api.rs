@@ -109,12 +109,6 @@ pub async fn get_status() -> Json<serde_json::Value> {
         .map(|n| {
             let short_id = n.network_key.as_ref().map(|k| k.chars().take(10).collect::<String>());
             serde_json::json!({
-                // STATUS-NETWORK-FIELD-001 (tetron): NetworkStatus.name is
-                // being phased out in favor of .network (identical value
-                // during the fleet upgrade window; see tetron's
-                // DO-NOT-COMMIT/TODO.md checklist). Read + re-expose the new
-                // field name here so this API's own contract doesn't
-                // perpetuate the same ambiguity one layer out.
                 "network": n.network,
                 "role": format!("{}", n.role),
                 "my_ip": n.my_ip,
