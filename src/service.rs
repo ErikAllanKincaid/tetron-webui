@@ -66,6 +66,7 @@ fn log_path() -> Result<PathBuf> {
 /// `ensure_service_installed` uses), enable it, and wait for the HTTP
 /// server to actually come up before declaring success.
 pub fn install() -> Result<()> {
+    println!("installing tetron-webui {}", crate::FULL_VERSION);
     let exe = std::env::current_exe()
         .context("failed to determine current executable path")?
         .to_string_lossy()

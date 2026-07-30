@@ -21,7 +21,7 @@ const BIND_ADDR: &str = "127.0.0.1:7870";
 /// by `build.rs` (e.g. `0.8.4 (a1b2c3d4)`). The SHA distinguishes two builds
 /// that share the same, unbumped crate version -- same pattern as tetron
 /// core's own `FULL_VERSION`.
-const FULL_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_SHA"), ")");
+pub(crate) const FULL_VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_SHA"), ")");
 
 #[derive(Parser)]
 #[command(name = "tetron-webui", version = FULL_VERSION)]
