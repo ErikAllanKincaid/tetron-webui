@@ -188,6 +188,7 @@ pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
         transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
         subnet: req.subnet,
         nuke_consensus: req.nuke_consensus,
+        force: false,
     })
     .await;
     match resp {
@@ -269,6 +270,7 @@ pub async fn join_network(Json(req): Json<JoinReq>) -> Response {
         hostname: req.hostname,
         transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
         invite: Some(secret),
+        force: false,
     })
     .await;
     match resp {

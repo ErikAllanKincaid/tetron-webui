@@ -3296,8 +3296,8 @@ dependencies = [
 
 [[package]]
 name = "tetron-proto"
-version = "0.7.0"
-source = "git+https://github.com/ErikAllanKincaid/tetron#fcf4e0ff569411a6333c58c758f34152b432bbe1"
+version = "0.9.3"
+source = "git+https://github.com/ErikAllanKincaid/tetron#c36cd8ebd2a74271e9d400405374c50d04b3946d"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3312,7 +3312,7 @@ dependencies = [
 
 [[package]]
 name = "tetron-webui"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "anyhow",
  "axum",
