@@ -21,8 +21,7 @@ pub struct AddonSpec {
     pub id: &'static str,
     pub display_name: &'static str,
     pub description: &'static str,
-    pub github_repo: &'static str,
-    /// Whether this addon is a single downloadable release binary this
+    pub github_repo: &'static str,    /// Whether this addon is a single downloadable release binary this
     /// webui can fetch/verify/install/uninstall itself. `false` for addons
     /// that are a whole environment or a script run against a remote host
     /// (tetron-relay, tetron-testsuite) rather than a per-user local
@@ -48,6 +47,30 @@ pub struct AddonSpec {
     /// headless install fails fast with a clear reason instead of a
     /// confusing "never became active" error 10s later).
     pub needs_display: bool,
+    /// Whether this addon has an in-app instructions popup rendered from
+    /// `ADDON_DETAILS` in app.js -- a "Details" button appears next to the
+    /// row, opening the detail modal with step-by-step commands. Used by
+    /// Config Backup (the popup points at the script this webui proxies at
+    /// /addons/tetron-backup.sh, plus the direct tetron-repo raw URL as a
+    /// fallback); any future addon with setup docs can set this and add a
+    /// matching app.js entry.
+    pub details: bool,
+}
+
+/// Where the Config Backup script lives upstream: the tetron repo's
+/// `contrib/tetron-backup.sh` on `main` (a script has no release tag to
+/// pin, so the ref floats -- same philosophy as the floating `tetron-proto`
+/// git dependency). Overridable via `TETRON_BACKUP_RAW_URL`, both for
+/// testing and so the suite can survive the repo moving off GitHub.
+pub const DEFAULT_BACKUP_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/tetron-backup.sh";
+
+/// Effective upstream URL for the backup script: `TETRON_BACKUP_RAW_URL`
+/// env override if set, else the default. Shared by the /addons/
+/// tetron-backup.sh proxy (main.rs) and the addons API so the popup's
+/// fallback curl command always shows the same URL the proxy actually uses.
+pub fn backup_script_url() -> String {
+    std::env::var("TETRON_BACKUP_RAW_URL").unwrap_or_else(|_| DEFAULT_BACKUP_SCRIPT_URL.to_string())
 }
 
 pub const ADDONS: &[AddonSpec] = &[
@@ -61,6 +84,19 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "tetron-systray",
         macos_label: "com.tetron.systray",
         needs_display: true,
+        details: false,
+    },
+    AddonSpec {
+        id: "backup",
+        display_name: "Config Backup",
+        description: "Passphrase-encrypted tar+age backup of this host's tetron config tree (secret_key, settings.toml, every networks/*.toml). The script lives in the tetron repo (contrib/tetron-backup.sh) and this webui proxies it at /addons/tetron-backup.sh -- no repo clone or external download involved.",
+        github_repo: "ErikAllanKincaid/tetron",
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        needs_display: false,
+        details: true,
     },
     AddonSpec {
         id: "relay",
@@ -72,6 +108,7 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "",
         macos_label: "",
         needs_display: false,
+        details: false,
     },
     AddonSpec {
         id: "testsuite",
@@ -83,6 +120,7 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "",
         macos_label: "",
         needs_display: false,
+        details: false,
     },
 ];
 
@@ -94,6 +132,10 @@ pub struct AddonStatus {
     pub github_repo: &'static str,
     pub installable: bool,
     pub installed: bool,
+    pub details: bool,
+    /// Effective upstream URL for addons that proxy a script the popup
+    /// points at (Config Backup); `None` for every other addon.
+    pub script_url: Option<String>,
 }
 
 fn find(id: &str) -> anyhow::Result<&'static AddonSpec> {
@@ -158,6 +200,8 @@ pub async fn list_status() -> Vec<AddonStatus> {
             github_repo: spec.github_repo,
             installable: spec.installable,
             installed,
+            details: spec.details,
+            script_url: (spec.id == "backup").then(backup_script_url),
         });
     }
     out

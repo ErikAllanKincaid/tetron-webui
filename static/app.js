@@ -770,13 +770,19 @@ function renderAddonRow(addon) {
   // Link-only addons (a script run against a remote host, or a whole VM
   // environment) have no local install/uninstall action -- just the name,
   // description, and a link out to the repo for their own setup steps.
+  // Addons with `details: true` additionally get a "Details" button that
+  // opens the in-app instructions popup (ADDON_DETAILS below).
   if (!addon.installable) {
+    const actions = addon.details
+      ? `<div class="addon-actions"><button class="btn-small" data-action="details" data-addon="${addon.id}">Details</button></div>`
+      : "";
     return `<div class="addon-row" data-addon="${addon.id}">
       <div class="addon-info">
         <span class="addon-name">${addon.display_name}</span>
         <p class="muted addon-description">${addon.description}</p>
         <p class="addon-repo">${repoLink}</p>
       </div>
+      ${actions}
     </div>`;
   }
 
@@ -797,10 +803,68 @@ function renderAddonRow(addon) {
   </div>`;
 }
 
+// In-app instructions popups for addons with `details: true` (see
+// src/addons.rs). Body is a function of the addon status so the
+// script-fetch commands can be built from the browser's current origin
+// (whoever is viewing the popup -- directly on 127.0.0.1:7870 or through
+// a reverse proxy -- gets a curl command that reaches this webui from
+// where they are) and from the effective upstream URL the server reports
+// (script_url: TETRON_BACKUP_RAW_URL override or the tetron-repo default).
+const ADDON_DETAILS = {
+  backup: {
+    title: "Config Backup",
+    body: (addon) => {
+      const origin = window.location.origin;
+      const fetchCmd = `curl -fsSL ${origin}/addons/tetron-backup.sh -o tetron-backup.sh && chmod +x tetron-backup.sh`;
+      const altCmd = `curl -fsSL ${addon.script_url} -o tetron-backup.sh && chmod +x tetron-backup.sh`;
+      const backupCmd = "sudo ./tetron-backup.sh";
+      const restoreCmd = "sudo ./tetron-backup.sh --restore /path/to/backup.tar.age";
+      return `
+        <p class="muted">Run these in a terminal on this host. The script is proxied by this webui from the tetron repo (contrib/tetron-backup.sh), so no repo clone is involved. Requires <code>age</code> (age-encryption.org) — the script prints install hints if it is missing.</p>
+        <h4>1. Get the script (once)</h4>
+        ${copyBlock(fetchCmd)}
+        <p class="muted">If this webui can not reach the tetron repo (e.g. no internet on this host), fetch the script directly instead:</p>
+        ${copyBlock(altCmd)}
+        <p class="muted">Inspect it first if you like: <code>cat tetron-backup.sh</code>.</p>
+        <h4>2. Back up</h4>
+        ${copyBlock(backupCmd)}
+        <p class="muted">Prompts for a passphrase twice; writes <code>tetron-backup-&lt;host&gt;-&lt;date&gt;.tar.age</code> in the current directory. A custom path works too: <code>sudo ./tetron-backup.sh /path/to/backup.tar.age</code>. Verify a backup with <code>age -d backup.tar.age | tar -tzf -</code>.</p>
+        <h4>3. Restore</h4>
+        ${copyBlock(restoreCmd)}
+        <p class="muted">Stops the tetron daemon, restores the config tree (Linux <code>/etc/tetron</code>, macOS <code>/var/root/Library/Application Support/tetron</code>), and starts the daemon again.</p>
+        <p class="muted"><strong>Passphrase is the only key:</strong> lose it, lose the backup. Covers <code>secret_key</code>, <code>settings.toml</code>, and every <code>networks/*.toml</code>.</p>`;
+    },
+  },
+};
+
+// A copyable command block for the instructions popup. The copy handler is
+// the delegated listener on detailBody below (the #networks delegate can't
+// see inside the modal).
+function copyBlock(cmd) {
+  return `<div class="copy-block"><pre class="copy-pre">${cmd}</pre><button class="copy-btn" data-action="copy" data-copy="${cmd}" title="Copy command">⧉</button></div>`;
+}
+
+// Same copy behavior as the #networks delegate, scoped to the detail modal
+// so copy buttons inside instructions popups work.
+detailBody.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-action='copy']");
+  if (!el) return;
+  navigator.clipboard.writeText(el.dataset.copy).then(() => {
+    const original = el.textContent;
+    el.textContent = "✓";
+    setTimeout(() => { el.textContent = original; }, 900);
+  });
+});
+
+// Last addon statuses from /api/addons, kept so the Details handler can
+// pass the full addon object (script_url etc.) to the popup builder.
+let lastAddons = [];
+
 async function pollAddons() {
   const list = document.getElementById("addons-list");
   try {
     const addons = await getJson("/api/addons");
+    lastAddons = addons;
     list.innerHTML = addons.length ? addons.map(renderAddonRow).join("") : `<p class="muted">No add-ons known.</p>`;
   } catch (e) {
     list.innerHTML = `<p class="muted">Could not load add-ons: ${String(e)}</p>`;
@@ -811,6 +875,19 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
   const { action, addon } = btn.dataset;
+
+  // Instructions popup (addons with `details: true`, e.g. Config Backup) --
+  // no backend call, purely a frontend reveal of static content.
+  if (action === "details") {
+    const detail = ADDON_DETAILS[addon];
+    if (!detail) return;
+    const status = lastAddons.find((a) => a.id === addon) || {};
+    detailTitle.textContent = detail.title;
+    detailBody.innerHTML = detail.body(status);
+    detailModal.classList.remove("hidden");
+    return;
+  }
+
   const row = btn.closest(".addon-row");
   const out = row.querySelector(".form-result");
 

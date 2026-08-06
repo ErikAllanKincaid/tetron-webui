@@ -12,6 +12,7 @@ mod ipc_client;
 mod service;
 
 use axum::routing::{delete, get, post};
+use axum::response::IntoResponse;
 use axum::Router;
 use clap::{Parser, Subcommand};
 
@@ -101,6 +102,77 @@ async fn serve_idiomorph_js() -> impl axum::response::IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "application/javascript")], IDIOMORPH_JS)
 }
 
+// --- Config-Backup script proxy -------------------------------------------------
+//
+// The script lives in the tetron repo (contrib/tetron-backup.sh) and is
+// proxied here so the Details popup can hand the user a `curl` command
+// against this webui instead of a repo clone. `curl` shell-out matches the
+// addon-download machinery in addons.rs (no new HTTP dependency). Fetched
+// from `backup_script_url()` (TETRON_BACKUP_RAW_URL override, default the
+// tetron repo's main branch) and cached in memory for 10 minutes; when the
+// upstream fetch fails, the last known good copy is served if one exists
+// (stale is better than a dead endpoint when GitHub is unreachable), and a
+// brand-new webui with no cache returns 502 naming the direct URL.
+
+const BACKUP_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(600);
+static BACKUP_CACHE: std::sync::Mutex<Option<(std::time::Instant, String)>> =
+    std::sync::Mutex::new(None);
+
+async fn fetch_backup_script(url: &str) -> anyhow::Result<String> {
+    let out = tokio::process::Command::new("curl")
+        .args(["-fsSL"])
+        .arg(url)
+        .output()
+        .await?;
+    anyhow::ensure!(out.status.success(), "curl exited with {}", out.status);
+    Ok(String::from_utf8(out.stdout)?)
+}
+
+fn serve_backup_ok(body: String) -> axum::response::Response {
+    (
+        axum::http::StatusCode::OK,
+        [
+            (axum::http::header::CONTENT_TYPE, "text/x-shellscript"),
+            (axum::http::header::CACHE_CONTROL, "no-cache"),
+        ],
+        body,
+    )
+        .into_response()
+}
+
+async fn serve_backup_script() -> axum::response::Response {
+    let url = addons::backup_script_url();
+    let cached = BACKUP_CACHE.lock().unwrap().clone();
+    if let Some((fetched_at, body)) = &cached
+        && fetched_at.elapsed() < BACKUP_CACHE_TTL
+    {
+        return serve_backup_ok(body.clone());
+    }
+    match fetch_backup_script(&url).await {
+        Ok(body) => {
+            *BACKUP_CACHE.lock().unwrap() = Some((std::time::Instant::now(), body.clone()));
+            serve_backup_ok(body)
+        }
+        Err(e) => {
+            if let Some((_, body)) = cached {
+                return serve_backup_ok(body);
+            }
+            (
+                axum::http::StatusCode::BAD_GATEWAY,
+                [
+                    (axum::http::header::CONTENT_TYPE, "text/plain"),
+                    (axum::http::header::CACHE_CONTROL, "no-cache"),
+                ],
+                format!(
+                    "could not fetch the backup script from {url}: {e}\n\
+                     fetch it directly with: curl -fsSL '{url}' -o tetron-backup.sh"
+                ),
+            )
+                .into_response()
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -146,7 +218,10 @@ async fn main() -> anyhow::Result<()> {
         // Addon-install framework
         .route("/api/addons", get(api::addons_list))
         .route("/api/addons/{id}/install", post(api::addon_install))
-        .route("/api/addons/{id}/uninstall", post(api::addon_uninstall));
+        .route("/api/addons/{id}/uninstall", post(api::addon_uninstall))
+        // Config-Backup addon: the script itself, fetched by the Details
+        // popup's curl command
+        .route("/addons/tetron-backup.sh", get(serve_backup_script));
 
     let port = resolve_port();
     let addr = format!("127.0.0.1:{port}");

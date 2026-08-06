@@ -436,3 +436,45 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 footer#footer { text-align: center; padding: 16px; font-size: 0.8rem; }
 footer#footer a { color: var(--text-muted); }
 footer#footer a:hover { color: var(--accent); }
+
+/* ---------------------------------------------------------------------
+   Addon instructions popup (Config Backup's Details button). Command
+   blocks get a monospace pre with horizontal scroll so long curl lines
+   don't blow the modal out; copy button sits beside it.
+   --------------------------------------------------------------------- */
+
+#detail-modal .modal { max-width: 620px; }
+#detail-body h4 { margin: 16px 0 4px; }
+#detail-body h4:first-child { margin-top: 0; }
+#detail-body p { margin: 6px 0; }
+#detail-body code {
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.copy-block {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 6px 0 8px;
+}
+.copy-pre {
+  flex: 1;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.copy-block .copy-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  border: 1px solid var(--border);
+}
