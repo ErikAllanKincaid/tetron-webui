@@ -164,6 +164,22 @@ function showDetail(title, rows) {
 
 detailClose.addEventListener("click", () => detailModal.classList.add("hidden"));
 
+// Dismiss the detail popup by clicking the backdrop (clicking anywhere
+// outside the card) or pressing Escape. The popup content can outgrow the
+// viewport (Config Backup's details), and its Close button sits at the
+// bottom of the scroll -- without these two the user can get stuck with
+// no way to close it. Scoped to the detail modal on purpose: the confirm
+// modal is a deliberate two-button destructive flow and must not be
+// dismissable by accident.
+detailModal.addEventListener("click", (e) => {
+  if (e.target === detailModal) detailModal.classList.add("hidden");
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !detailModal.classList.contains("hidden")) {
+    detailModal.classList.add("hidden");
+  }
+});
+
 // -----------------------------------------------------------------------
 // Status polling (Phase 1). This is also the entire "reconnect after a
 // daemon restart" story: every poll independently reconnects via
@@ -765,13 +781,18 @@ document.getElementById("join-form").addEventListener("submit", async (e) => {
 // -----------------------------------------------------------------------
 
 function renderAddonRow(addon) {
-  const repoLink = `<a class="addon-link" href="https://github.com/${addon.github_repo}" target="_blank" rel="noopener">${addon.github_repo}</a>`;
+  const hasPopup = !!ADDON_DETAILS[addon.id];
+  // Popup addons (Config Backup) link straight to the script's home in
+  // the repo (contrib/ on main) instead of the repo root.
+  const repoLine = hasPopup
+    ? `<p class="addon-repo"><a class="addon-link" href="https://github.com/${addon.github_repo}/tree/main/contrib" target="_blank" rel="noopener">${addon.github_repo}/tree/main/contrib</a></p>`
+    : `<p class="addon-repo"><a class="addon-link" href="https://github.com/${addon.github_repo}" target="_blank" rel="noopener">${addon.github_repo}</a></p>`;
 
   // Link-only addons (a script run against a remote host, or a whole VM
   // environment) have no local install/uninstall action -- just the name,
   // description, and a link out to the repo for their own setup steps.
-  // Addons with `details: true` additionally get a "Details" button that
-  // opens the in-app instructions popup (ADDON_DETAILS below).
+  // Addons with `details: true` additionally get a button that opens the
+  // in-app instructions popup (ADDON_DETAILS below).
   if (!addon.installable) {
     const actions = addon.details
       ? `<div class="addon-actions"><button class="btn-small" data-action="details" data-addon="${addon.id}">Details</button></div>`
@@ -780,21 +801,28 @@ function renderAddonRow(addon) {
       <div class="addon-info">
         <span class="addon-name">${addon.display_name}</span>
         <p class="muted addon-description">${addon.description}</p>
-        <p class="addon-repo">${repoLink}</p>
+        ${repoLine}
       </div>
       ${actions}
     </div>`;
   }
 
-  const action = addon.installed ? "uninstall" : "install";
-  const label = addon.installed ? "Uninstall" : "Install";
-  const btnClass = addon.installed ? "btn-secondary" : "";
+  // Installable addons get a single right-aligned button in the Systray
+  // spot. The reference look is the Systray "Uninstall" button (outline,
+  // btn-secondary) -- popup addons (Config Backup) keep that outline in
+  // BOTH states, since their button is a persistent "Backup" action, not
+  // an install toggle; plain addons toggle solid (Install) / outline
+  // (Uninstall) like before. One click on Backup installs the script if
+  // needed and opens the popup (see the "backup" branch below).
+  const action = hasPopup ? "backup" : (addon.installed ? "uninstall" : "install");
+  const label = hasPopup ? "Backup" : (addon.installed ? "Uninstall" : "Install");
+  const btnClass = hasPopup || addon.installed ? "btn-secondary" : "";
   return `<div class="addon-row" data-addon="${addon.id}">
     <div class="addon-info">
       <span class="addon-name">${addon.display_name}</span>
       <span class="addon-status ${addon.installed ? "installed" : "not-installed"}">${addon.installed ? "installed" : "not installed"}</span>
       <p class="muted addon-description">${addon.description}</p>
-      <p class="addon-repo">${repoLink}</p>
+      ${repoLine}
     </div>
     <div class="addon-actions">
       <button class="btn-small ${btnClass}" data-action="${action}" data-addon="${addon.id}">${label}</button>
@@ -815,21 +843,27 @@ const ADDON_DETAILS = {
     title: "Config Backup",
     body: (addon) => {
       const origin = window.location.origin;
-      const fetchCmd = `curl -fsSL ${origin}/addons/tetron-backup.sh -o tetron-backup.sh && chmod +x tetron-backup.sh`;
-      const altCmd = `curl -fsSL ${addon.script_url} -o tetron-backup.sh && chmod +x tetron-backup.sh`;
-      const backupCmd = "sudo ./tetron-backup.sh";
-      const restoreCmd = "sudo ./tetron-backup.sh --restore /path/to/backup.tar.age";
-      return `
-        <p class="muted">Run these in a terminal on this host. The script is proxied by this webui from the tetron repo (contrib/tetron-backup.sh), so no repo clone is involved. Requires <code>age</code> (age-encryption.org) — the script prints install hints if it is missing.</p>
-        <h4>1. Get the script (once)</h4>
-        ${copyBlock(fetchCmd)}
+      const scriptPath = "~/.local/bin/tetron-backup.sh";
+      const backupCmd = `sudo ${scriptPath}`;
+      const restoreCmd = `sudo ${scriptPath} --restore /path/to/backup.tar.age`;
+      // The script is proxied by this webui from the tetron repo
+      // (contrib/tetron-backup.sh), so the manual fetch needs no repo
+      // clone either. Manual fetch only appears as a fallback -- the
+      // normal path is the Install button on the row above.
+      const installBlock = addon.installed
+        ? `<p class="muted">Installed at <code>~/.local/bin/tetron-backup.sh</code> (no root needed). <button class="btn-small btn-secondary" data-action="backup-uninstall">Uninstall script</button></p>`
+        : `<p class="muted">Not installed yet — click <strong>Install</strong> on the row above: one click, no root needed, fetches the script into <code>~/.local/bin/tetron-backup.sh</code>.</p>
+        <h4>Fallback (no webui install button?)</h4>
+        ${copyBlock(`curl -fsSL ${origin}/addons/tetron-backup.sh -o tetron-backup.sh && chmod +x tetron-backup.sh`)}
         <p class="muted">If this webui can not reach the tetron repo (e.g. no internet on this host), fetch the script directly instead:</p>
-        ${copyBlock(altCmd)}
-        <p class="muted">Inspect it first if you like: <code>cat tetron-backup.sh</code>.</p>
-        <h4>2. Back up</h4>
+        ${copyBlock(`curl -fsSL ${addon.script_url} -o tetron-backup.sh && chmod +x tetron-backup.sh`)}`;
+      return `
+        <p class="muted">Passphrase-encrypted tar+age backup of this host's tetron config tree. Requires <code>age</code> (age-encryption.org) — the script prints install hints if it is missing.</p>
+        ${installBlock}
+        <h4>1. Back up</h4>
         ${copyBlock(backupCmd)}
-        <p class="muted">Prompts for a passphrase twice; writes <code>tetron-backup-&lt;host&gt;-&lt;date&gt;.tar.age</code> in the current directory. A custom path works too: <code>sudo ./tetron-backup.sh /path/to/backup.tar.age</code>. Verify a backup with <code>age -d backup.tar.age | tar -tzf -</code>.</p>
-        <h4>3. Restore</h4>
+        <p class="muted">Prompts for a passphrase twice; writes <code>tetron-backup-&lt;host&gt;-&lt;date&gt;.tar.age</code> in the current directory. A custom path works too: <code>sudo ${scriptPath} /path/to/backup.tar.age</code>. Verify a backup with <code>age -d backup.tar.age | tar -tzf -</code>.</p>
+        <h4>2. Restore</h4>
         ${copyBlock(restoreCmd)}
         <p class="muted">Stops the tetron daemon, restores the config tree (Linux <code>/etc/tetron</code>, macOS <code>/var/root/Library/Application Support/tetron</code>), and starts the daemon again.</p>
         <p class="muted"><strong>Passphrase is the only key:</strong> lose it, lose the backup. Covers <code>secret_key</code>, <code>settings.toml</code>, and every <code>networks/*.toml</code>.</p>`;
@@ -845,8 +879,25 @@ function copyBlock(cmd) {
 }
 
 // Same copy behavior as the #networks delegate, scoped to the detail modal
-// so copy buttons inside instructions popups work.
-detailBody.addEventListener("click", (e) => {
+// so copy buttons inside instructions popups work. Also handles the
+// popup's own Uninstall script button (Config Backup): uninstalls, then
+// re-renders the popup in the not-installed state and refreshes the rows.
+detailBody.addEventListener("click", async (e) => {
+  const un = e.target.closest("[data-action='backup-uninstall']");
+  if (un) {
+    un.disabled = true;
+    const result = await postJson("/api/addons/backup/uninstall", {});
+    const current = lastAddons.find((a) => a.id === "backup") || {};
+    detailBody.innerHTML = ADDON_DETAILS.backup.body({ ...current, installed: false });
+    if (!result.ok) {
+      const note = document.createElement("p");
+      note.className = "form-result error";
+      note.textContent = result.error;
+      detailBody.appendChild(note);
+    }
+    setTimeout(pollAddons, 1500);
+    return;
+  }
   const el = e.target.closest("[data-action='copy']");
   if (!el) return;
   navigator.clipboard.writeText(el.dataset.copy).then(() => {
@@ -890,6 +941,41 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
 
   const row = btn.closest(".addon-row");
   const out = row.querySelector(".form-result");
+
+  // "Backup" button (installable addons with an instructions popup, e.g.
+  // Config Backup): install the script first if it is missing, then open
+  // the popup either way -- one button, both things. Uninstall is offered
+  // inside the popup instead of on the row, so the row stays the single
+  // right-aligned Systray-style button.
+  if (action === "backup") {
+    const detail = ADDON_DETAILS[addon];
+    if (!detail) return;
+    const current = lastAddons.find((a) => a.id === addon) || {};
+    let installed = !!current.installed;
+    if (!installed) {
+      btn.disabled = true;
+      const originalLabel = btn.textContent;
+      btn.textContent = "Installing…";
+      out.textContent = "";
+      out.className = "form-result";
+      const result = await postJson(`/api/addons/${encodeURIComponent(addon)}/install`, {});
+      if (!result.ok) {
+        out.textContent = result.error;
+        out.className = "form-result error";
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+      out.textContent = result.message;
+      out.className = "form-result success";
+      installed = true;
+      setTimeout(pollAddons, 1500);
+    }
+    detailTitle.textContent = detail.title;
+    detailBody.innerHTML = detail.body({ ...current, installed });
+    detailModal.classList.remove("hidden");
+    return;
+  }
 
   btn.disabled = true;
   const originalLabel = btn.textContent;

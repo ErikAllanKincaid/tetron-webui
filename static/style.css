@@ -231,7 +231,13 @@ details[open] > summary::before { transform: rotate(90deg); }
   font-size: 0.95rem;
 }
 
-button[type="submit"], .btn, .btn-secondary, .btn-danger {
+/* The base rule covers every button class, including a bare `.btn-small`
+   (used alone by e.g. "mint invite" and the not-installed Systray/Backup
+   state). Without `.btn-small` in the selector, those buttons got NO
+   border-radius/cursor/font and rendered with raw browser-default button
+   chrome -- visibly a different widget than the styled `.btn-secondary`
+   outline next to them. */
+button[type="submit"], .btn, .btn-secondary, .btn-danger, .btn-small {
   align-self: flex-start;
   border: none;
   border-radius: 6px;
@@ -239,7 +245,7 @@ button[type="submit"], .btn, .btn-secondary, .btn-danger {
   cursor: pointer;
   font-size: 0.9rem;
 }
-button[type="submit"], .btn { background: var(--accent); color: #fff; }
+button[type="submit"], .btn, .btn-small { background: var(--accent); color: #fff; }
 .btn-secondary { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
 .btn-danger { background: var(--status-down); color: #fff; }
 .btn-small { padding: 4px 10px; font-size: 0.8rem; }
@@ -349,16 +355,19 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 #addons-details { margin-top: 10px; }
 #addons-list { margin-top: 12px; }
 .addon-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
 }
 .addon-row:last-child { border-bottom: none; }
-.addon-info { min-width: 0; flex: 1 1 auto; }
+.addon-info { grid-column: 1; grid-row: 1; min-width: 0; }
+/* Action button pinned to the top-right corner of the row, always on the
+   same line as the addon name (the old flex-wrap row could drop it below
+   the description on narrow panels); form-result spans the full width on
+   its own row underneath. */
+.addon-actions { grid-column: 2; grid-row: 1; align-self: start; }
 .addon-name { font-weight: 600; margin-right: 8px; }
 .addon-status { font-size: 0.8rem; color: var(--text-muted); }
 .addon-status.installed { color: var(--status-active); }
@@ -366,8 +375,7 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
 .addon-repo { margin: 2px 0 0; font-size: 0.8rem; }
 .addon-link { color: var(--text-muted); text-decoration: none; }
 .addon-link:hover { color: var(--accent); }
-.addon-actions { flex: 0 0 auto; }
-.addon-row .form-result { flex-basis: 100%; margin: 4px 0 0; }
+.addon-row .form-result { grid-column: 1 / -1; grid-row: 2; margin: 4px 0 0; }
 
 /* ---------------------------------------------------------------------
    Confirmation modal -- used for every destructive action, never a bare
@@ -387,6 +395,11 @@ table.peer-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); 
   padding: 20px;
   max-width: 440px;
   width: 90%;
+  /* Long content (Config Backup's details popup) must scroll inside the
+     card instead of overflowing past the viewport -- otherwise the Close
+     button in .modal-actions ends up unreachable. */
+  max-height: 90vh;
+  overflow-y: auto;
 }
 .modal h3 { margin-top: 0; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }

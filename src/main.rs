@@ -78,16 +78,40 @@ const FAVICON_SVG: &str = include_str!("../static/favicon.svg");
 // -- see static/vendor/idiomorph.js's own header for provenance.
 const IDIOMORPH_JS: &str = include_str!("../static/vendor/idiomorph.js");
 
-async fn serve_index() -> axum::response::Html<&'static str> {
-    axum::response::Html(INDEX_HTML)
+// The app's own assets get Cache-Control: no-cache -- the browser must
+// revalidate on every load, because these are embedded in the binary and
+// change with every deploy (no versioned filenames to bust caches with).
+// Without this, a browser heuristically caches app.js/style.css and shows
+// a stale UI after an upgrade. Vendored third-party files below (favicon,
+// qrcode.js, idiomorph.js) are stable and left cacheable.
+async fn serve_index() -> impl axum::response::IntoResponse {
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/html"),
+            (axum::http::header::CACHE_CONTROL, "no-cache"),
+        ],
+        INDEX_HTML,
+    )
 }
 
 async fn serve_css() -> impl axum::response::IntoResponse {
-    ([(axum::http::header::CONTENT_TYPE, "text/css")], STYLE_CSS)
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "text/css"),
+            (axum::http::header::CACHE_CONTROL, "no-cache"),
+        ],
+        STYLE_CSS,
+    )
 }
 
 async fn serve_js() -> impl axum::response::IntoResponse {
-    ([(axum::http::header::CONTENT_TYPE, "application/javascript")], APP_JS)
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "application/javascript"),
+            (axum::http::header::CACHE_CONTROL, "no-cache"),
+        ],
+        APP_JS,
+    )
 }
 
 async fn serve_qrcode_js() -> impl axum::response::IntoResponse {
