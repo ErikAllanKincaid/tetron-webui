@@ -32,6 +32,13 @@ pub struct AddonSpec {
     /// left as placeholders when this is `false`).
     pub installable: bool,
     pub binary_name: &'static str,
+    /// Whether this addon's artifact is a bare script fetched from
+    /// `backup_script_url()` (Config Backup) rather than a release binary:
+    /// install = curl the raw file into `~/.local/bin`, chmod, done -- no
+    /// checksum sidecar, no `install` subcommand, no service to register
+    /// and no `is_active` poll. No root needed: the per-user bin dir is
+    /// the same one release-binary addons land in.
+    pub script: bool,
     /// systemd --user unit name (Linux), matching whatever the addon's own
     /// `install` subcommand registers (its own `service.rs`). Unread on
     /// non-Linux builds -- same reasoning as tetron-systray's own
@@ -48,6 +55,30 @@ pub struct AddonSpec {
     /// headless install fails fast with a clear reason instead of a
     /// confusing "never became active" error 10s later).
     pub needs_display: bool,
+    /// Whether this addon has an in-app instructions popup rendered from
+    /// `ADDON_DETAILS` in app.js -- a "Details" button appears next to the
+    /// row, opening the detail modal with step-by-step commands. Used by
+    /// Config Backup (the popup points at the script this webui proxies at
+    /// /addons/tetron-backup.sh, plus the direct tetron-repo raw URL as a
+    /// fallback); any future addon with setup docs can set this and add a
+    /// matching app.js entry.
+    pub details: bool,
+}
+
+/// Where the Config Backup script lives upstream: the tetron repo's
+/// `contrib/tetron-backup.sh` on `main` (a script has no release tag to
+/// pin, so the ref floats -- same philosophy as the floating `tetron-proto`
+/// git dependency). Overridable via `TETRON_BACKUP_RAW_URL`, both for
+/// testing and so the suite can survive the repo moving off GitHub.
+pub const DEFAULT_BACKUP_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/tetron-backup.sh";
+
+/// Effective upstream URL for the backup script: `TETRON_BACKUP_RAW_URL`
+/// env override if set, else the default. Shared by the /addons/
+/// tetron-backup.sh proxy (main.rs) and the addons API so the popup's
+/// fallback curl command always shows the same URL the proxy actually uses.
+pub fn backup_script_url() -> String {
+    std::env::var("TETRON_BACKUP_RAW_URL").unwrap_or_else(|_| DEFAULT_BACKUP_SCRIPT_URL.to_string())
 }
 
 pub const ADDONS: &[AddonSpec] = &[
@@ -61,6 +92,21 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "tetron-systray",
         macos_label: "com.tetron.systray",
         needs_display: true,
+        script: false,
+        details: false,
+    },
+    AddonSpec {
+        id: "backup",
+        display_name: "Config Backup",
+        description: "Passphrase-encrypted tar+age backup tetron config tree (secret_key, settings.toml, every networks/*.toml).",
+        github_repo: "ErikAllanKincaid/tetron",
+        installable: true,
+        binary_name: "tetron-backup.sh",
+        linux_unit: "",
+        macos_label: "",
+        needs_display: false,
+        script: true,
+        details: true,
     },
     AddonSpec {
         id: "relay",
@@ -72,6 +118,8 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "",
         macos_label: "",
         needs_display: false,
+        script: false,
+        details: false,
     },
     AddonSpec {
         id: "testsuite",
@@ -83,6 +131,8 @@ pub const ADDONS: &[AddonSpec] = &[
         linux_unit: "",
         macos_label: "",
         needs_display: false,
+        script: false,
+        details: false,
     },
 ];
 
@@ -94,6 +144,10 @@ pub struct AddonStatus {
     pub github_repo: &'static str,
     pub installable: bool,
     pub installed: bool,
+    pub details: bool,
+    /// Effective upstream URL for addons that proxy a script the popup
+    /// points at (Config Backup); `None` for every other addon.
+    pub script_url: Option<String>,
 }
 
 fn find(id: &str) -> anyhow::Result<&'static AddonSpec> {
@@ -147,10 +201,15 @@ async fn is_active(_spec: &AddonSpec) -> bool {
 pub async fn list_status() -> Vec<AddonStatus> {
     let mut out = Vec::with_capacity(ADDONS.len());
     for spec in ADDONS {
-        // A link-only addon has no unit/label to check -- skip the
-        // shell-out entirely rather than querying systemd/launchd about a
-        // service that was never registered under an empty name.
-        let installed = spec.installable && is_active(spec).await;
+        // A script addon is "installed" when the file exists in
+        // ~/.local/bin -- there is no service to poll. Everything else
+        // skips the shell-out entirely when link-only (no unit/label to
+        // query about a service that was never registered).
+        let installed = if spec.script {
+            binary_path(spec).map(|p| p.exists()).unwrap_or(false)
+        } else {
+            spec.installable && is_active(spec).await
+        };
         out.push(AddonStatus {
             id: spec.id,
             display_name: spec.display_name,
@@ -158,6 +217,8 @@ pub async fn list_status() -> Vec<AddonStatus> {
             github_repo: spec.github_repo,
             installable: spec.installable,
             installed,
+            details: spec.details,
+            script_url: (spec.id == "backup").then(backup_script_url),
         });
     }
     out
@@ -241,6 +302,11 @@ fn has_display() -> bool {
 /// `~/.local/bin`, then run the addon's own `install` subcommand to
 /// register its per-user service -- the same end state a manual
 /// `contrib/install-tetron-suite.sh` run would leave.
+///
+/// Script addons (Config Backup) take the much shorter path:
+/// `install_script` below -- curl the raw file from the effective
+/// `backup_script_url()` into `~/.local/bin`, chmod, done. No checksum
+/// sidecar (the file has none upstream), no service, no root.
 pub async fn install(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
     anyhow::ensure!(
@@ -249,6 +315,9 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
         spec.display_name,
         spec.github_repo
     );
+    if spec.script {
+        return install_script(spec).await;
+    }
     let display_caveat = spec.needs_display && !has_display();
     let suffix = asset_suffix()?;
     let asset = format!("{}-{suffix}", spec.binary_name);
@@ -309,7 +378,40 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
     Ok(format!("{} installed and running.", spec.display_name))
 }
 
-/// Stops+deregisters the addon's own per-user service (its own `uninstall`
+/// The Config Backup path: fetch the raw script from the effective
+/// `backup_script_url()` (the same URL the `/addons/tetron-backup.sh`
+/// proxy serves) into `~/.local/bin`, chmod 755, done. No root, no
+/// checksum sidecar, no service. Download goes to a temp file first so a
+/// failed/partial fetch can never clobber an already-installed copy --
+/// install only overwrites once the fetch succeeded.
+async fn install_script(spec: &AddonSpec) -> anyhow::Result<String> {
+    let url = backup_script_url();
+    let dest = binary_path(spec)?;
+    let tmpdir = tempfile::Builder::new().prefix("tetron-webui-script-").tempdir()?;
+    let tmp_path = tmpdir.path().join(spec.binary_name);
+    run_ok(Command::new("curl").args(["-fsSL", "-o"]).arg(&tmp_path).arg(&url))
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to download script from {url}: {e}"))?;
+    let meta = tokio::fs::metadata(&tmp_path).await?;
+    anyhow::ensure!(
+        meta.len() > 0,
+        "downloaded script from {url} is empty -- aborting install"
+    );
+    tokio::fs::create_dir_all(install_dir()?).await?;
+    tokio::fs::copy(&tmp_path, &dest).await
+        .map_err(|e| anyhow::anyhow!("failed to install to {}: {e}", dest.display()))?;
+    set_executable(&dest).await?;
+    Ok(format!(
+        "{} installed at {} (no root needed).",
+        spec.display_name,
+        dest.display()
+    ))
+}
+
+/// Uninstall one addon. Script addons (Config Backup): remove the file
+/// from `~/.local/bin` and nothing else -- there is no service to tear
+/// down. Everything else delegates to `uninstall_service`, which
+/// stops+deregisters the addon's own per-user service (its own `uninstall`
 /// subcommand -- `systemctl --user disable --now` / `launchctl unload` plus
 /// removing the unit/plist and, on macOS, the `.app` bundle it copied
 /// itself into) and then removes the binary this webui installed at `dest`.
@@ -335,6 +437,23 @@ pub async fn uninstall(id: &str) -> anyhow::Result<String> {
         spec.display_name,
         spec.github_repo
     );
+    if spec.script {
+        let dest = binary_path(spec)?;
+        anyhow::ensure!(dest.exists(), "{} is not installed", spec.display_name);
+        match tokio::fs::remove_file(&dest).await {
+            Ok(()) => Ok(format!("{} script removed from {}.", spec.display_name, dest.display())),
+            Err(e) => Ok(format!(
+                "{} script at {} could not be removed: {e}. Delete it manually if you want a full cleanup.",
+                spec.display_name,
+                dest.display()
+            )),
+        }
+    } else {
+        uninstall_service(spec).await
+    }
+}
+
+async fn uninstall_service(spec: &AddonSpec) -> anyhow::Result<String> {
     let dest = binary_path(spec)?;
     anyhow::ensure!(dest.exists(), "{} is not installed", spec.display_name);
     run_ok(Command::new(&dest).arg("uninstall")).await?;
