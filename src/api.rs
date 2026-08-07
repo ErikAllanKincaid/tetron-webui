@@ -235,27 +235,135 @@ pub struct JoinReq {
     tor: bool,
 }
 
+/// Length of the random invite secret, in bytes. Mirrors `SECRET_LEN` in
+/// the main tetron crate's `src/invite.rs`.
+const SECRET_LEN: usize = 16;
+/// Length of the blake3 integrity checksum appended to an invite payload
+/// (`INVITE-CHECKSUM-001`). Mirrors `CHECKSUM_LEN` in `src/invite.rs`.
+const CHECKSUM_LEN: usize = 4;
+/// Payload length of an invite code before the checksum: network pubkey
+/// (32 bytes) + secret. Mirrors `PAYLOAD_LEN` in `src/invite.rs`.
+const PAYLOAD_LEN: usize = 32 + SECRET_LEN;
+/// Total raw length of a checksummed invite code (payload + checksum).
+/// Mirrors `ENCODED_LEN` in `src/invite.rs`.
+const ENCODED_LEN: usize = PAYLOAD_LEN + CHECKSUM_LEN;
+
 /// Mirrors `src/invite.rs`'s `decode_invite_code` in the main tetron crate:
-/// an invite code is `bs58(network_pubkey(32 bytes) || secret)`. That
-/// function lives in a binary crate not meant to be depended on as a
-/// library, so it's re-implemented here rather than imported.
+/// an invite code is `bs58(network_pubkey(32 bytes) || secret(16) ||
+/// blake3(payload)[..4])` (`INVITE-CHECKSUM-001`), or the legacy 48-byte
+/// unchecksummed form. That function lives in a binary crate not meant to
+/// be depended on as a library, so it's re-implemented here rather than
+/// imported. **Keep in sync with `src/invite.rs::decode_invite_code`** --
+/// this copy went stale once already (found and fixed 2026-08-06, see
+/// `DO-NOT-COMMIT/TODO_DETAILS.md`) when core added the checksum and this
+/// side wasn't updated; there is no compiler link between the two to catch
+/// drift automatically.
 fn decode_invite(code: &str) -> Result<(iroh::EndpointId, Vec<u8>), String> {
     let bytes = bs58::decode(code)
         .into_vec()
         .map_err(|e| format!("invalid invite code: {e}"))?;
-    if bytes.len() <= 32 {
-        return Err(format!(
-            "invalid invite code: expected more than 32 bytes, got {}",
-            bytes.len()
-        ));
-    }
-    let net: [u8; 32] = bytes[0..32]
+    let payload = match bytes.len() {
+        // Checksummed form: 48-byte payload + 4-byte checksum.
+        ENCODED_LEN => {
+            let (payload, csum) = bytes.split_at(PAYLOAD_LEN);
+            if csum != &blake3::hash(payload).as_bytes()[..CHECKSUM_LEN] {
+                return Err("invalid invite code: checksum mismatch (corrupted or mistyped)".to_string());
+            }
+            payload
+        }
+        // Legacy unchecksummed form: 48-byte payload only.
+        PAYLOAD_LEN => &bytes[..],
+        other => {
+            return Err(format!(
+                "invalid invite code: expected {ENCODED_LEN} or {PAYLOAD_LEN} bytes, got {other}"
+            ));
+        }
+    };
+    let net: [u8; 32] = payload[0..32]
         .try_into()
         .map_err(|_| "invalid invite code: malformed network key".to_string())?;
-    let secret = bytes[32..].to_vec();
+    let secret = payload[32..].to_vec();
     let network_pubkey =
         iroh::EndpointId::from_bytes(&net).map_err(|e| format!("invalid network key in invite: {e}"))?;
     Ok((network_pubkey, secret))
+}
+
+#[cfg(test)]
+mod decode_invite_tests {
+    use super::*;
+
+    fn test_id(seed: u8) -> iroh::EndpointId {
+        let mut key_bytes = [0u8; 32];
+        key_bytes[0] = seed;
+        iroh::SecretKey::from(key_bytes).public()
+    }
+
+    fn encode_checksummed(network_pubkey: &iroh::EndpointId, secret: &[u8]) -> String {
+        let mut bytes = Vec::with_capacity(PAYLOAD_LEN + CHECKSUM_LEN);
+        bytes.extend_from_slice(network_pubkey.as_bytes());
+        bytes.extend_from_slice(secret);
+        bytes.extend_from_slice(&blake3::hash(&bytes).as_bytes()[..CHECKSUM_LEN]);
+        bs58::encode(&bytes).into_string()
+    }
+
+    fn encode_legacy(network_pubkey: &iroh::EndpointId, secret: &[u8]) -> String {
+        let mut bytes = Vec::with_capacity(PAYLOAD_LEN);
+        bytes.extend_from_slice(network_pubkey.as_bytes());
+        bytes.extend_from_slice(secret);
+        bs58::encode(&bytes).into_string()
+    }
+
+    #[test]
+    fn decodes_a_checksummed_code() {
+        let id = test_id(1);
+        let secret = [7u8; SECRET_LEN];
+        let code = encode_checksummed(&id, &secret);
+        let (decoded_id, decoded_secret) = decode_invite(&code).expect("valid checksummed code");
+        assert_eq!(decoded_id, id);
+        assert_eq!(decoded_secret, secret);
+    }
+
+    #[test]
+    fn decodes_a_legacy_unchecksummed_code() {
+        let id = test_id(2);
+        let secret = [9u8; SECRET_LEN];
+        let code = encode_legacy(&id, &secret);
+        let (decoded_id, decoded_secret) = decode_invite(&code).expect("valid legacy code");
+        assert_eq!(decoded_id, id);
+        assert_eq!(decoded_secret, secret);
+    }
+
+    #[test]
+    fn rejects_a_checksum_mismatch() {
+        let id = test_id(3);
+        let secret = [1u8; SECRET_LEN];
+        let mut bytes = bs58::decode(encode_checksummed(&id, &secret)).into_vec().unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 0xFF; // corrupt one checksum byte
+        let code = bs58::encode(&bytes).into_string();
+        let err = decode_invite(&code).unwrap_err();
+        assert!(err.contains("checksum mismatch"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn rejects_wrong_length() {
+        let err = decode_invite(&bs58::encode([0u8; 10]).into_string()).unwrap_err();
+        assert!(err.contains("expected"), "unexpected error: {err}");
+    }
+
+    /// This is the exact bug found 2026-08-06: before this fix, a
+    /// checksummed (52-byte) code decoded "successfully" by treating the
+    /// trailing 4 checksum bytes as part of the secret, silently producing
+    /// a wrong (20-byte instead of 16-byte) secret instead of a clean
+    /// decode error.
+    #[test]
+    fn checksummed_code_secret_is_exactly_secret_len_bytes() {
+        let id = test_id(4);
+        let secret = [3u8; SECRET_LEN];
+        let code = encode_checksummed(&id, &secret);
+        let (_, decoded_secret) = decode_invite(&code).expect("valid checksummed code");
+        assert_eq!(decoded_secret.len(), SECRET_LEN);
+    }
 }
 
 /// `POST /api/networks/join`.

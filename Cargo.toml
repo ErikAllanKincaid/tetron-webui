@@ -31,11 +31,16 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "fs
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
-# Decodes an invite code (bs58(network_pubkey || secret)) client-side, same
-# as tetron's own CLI does in src/invite.rs -- that decode logic lives in the
-# main tetron crate (a binary, not meant to be depended on as a library), so
-# it's reimplemented here rather than pulled in.
+# Decodes an invite code (bs58(network_pubkey || secret || checksum))
+# client-side, same as tetron's own CLI does in src/invite.rs -- that decode
+# logic lives in the main tetron crate (a binary, not meant to be depended
+# on as a library), so it's reimplemented here rather than pulled in.
 bs58 = "0.5"
+# Verifies the trailing 4-byte checksum on a decoded invite code
+# (INVITE-CHECKSUM-001) -- same crate/major version as tetron core's own
+# Cargo.toml, no `serde` feature needed here (nothing in this crate
+# serializes a blake3 hash, unlike core's InviteEntry/ReusableKey).
+blake3 = "1"
 # Addon-install framework (src/addons.rs): a private per-install scratch dir
 # for the download+verify step. tetron core keeps this dev-only to preserve
 # its own minimal-deps posture, but that constraint doesn't apply to webui.
