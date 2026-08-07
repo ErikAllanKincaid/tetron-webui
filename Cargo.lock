@@ -3312,7 +3312,7 @@ dependencies = [
 
 [[package]]
 name = "tetron-webui"
-version = "0.9.3"
+version = "0.9.4"
 dependencies = [
  "anyhow",
  "axum",
