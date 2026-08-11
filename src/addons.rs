@@ -1,16 +1,14 @@
 //! Addon-install framework: a small, data-driven registry of optional
-//! tetron addons (systray today, more later) the webui can detect, fetch,
-//! verify, install, and uninstall on this host.
+//! tetron addons (systray today, more later) the webui can detect and
+//! uninstall on this host.
 //!
-//! Reuses the exact convention already proven in `tetron`'s own
-//! `contrib/install-tetron-suite.sh`: each release publishes a binary
-//! asset named `<binary>-<platform>-<arch>` plus a `.sha256` sidecar whose
-//! contents reference that exact filename (verify before renaming, or
-//! `sha256sum -c`/`shasum -a 256 -c` fail with "No such file or
-//! directory" -- a bug that script's own history already hit and fixed
-//! once). Generalizing this to more than one addon only ever needs a new
-//! `AddonSpec` entry below -- the fetch/verify/install/status logic is
-//! already fully addon-agnostic.
+//! Release-binary addons (systray) live at root-owned `/usr/local/bin`,
+//! same as `tetron`/`tetron-webui`, so this webui -- running unprivileged
+//! -- can no longer fetch and place the binary itself; `install()` points
+//! at `contrib/install-tetron-suite.sh` instead, the same installer
+//! `tetron`/`tetron-webui` are themselves installed with. Script addons
+//! (Config Backup) are unaffected: no service, no root, still installed
+//! directly into `~/.local/bin`.
 
 use std::path::{Path, PathBuf};
 
@@ -22,22 +20,26 @@ pub struct AddonSpec {
     pub display_name: &'static str,
     pub description: &'static str,
     pub github_repo: &'static str,
-    /// Whether this addon is a single downloadable release binary this
-    /// webui can fetch/verify/install/uninstall itself. `false` for addons
-    /// that are a whole environment or a script run against a remote host
-    /// (tetron-relay, tetron-testsuite) rather than a per-user local
-    /// service -- these show up as a name/description/repo-link row only,
-    /// with no install/uninstall action and no `is_active`/binary-path
-    /// machinery invoked on their behalf (the fields below are unused and
-    /// left as placeholders when this is `false`).
+    /// Whether this addon is a single release binary/script this webui can
+    /// detect and uninstall (and, for script addons, install too -- see
+    /// `script` below). `false` for addons that are a whole environment or
+    /// a script run against a remote host (tetron-relay, tetron-testsuite)
+    /// rather than a per-user local service -- these show up as a
+    /// name/description/repo-link row only, with no install/uninstall
+    /// action and no `is_active`/binary-path machinery invoked on their
+    /// behalf (the fields below are unused and left as placeholders when
+    /// this is `false`).
     pub installable: bool,
     pub binary_name: &'static str,
     /// Whether this addon's artifact is a bare script fetched from
     /// `backup_script_url()` (Config Backup) rather than a release binary:
     /// install = curl the raw file into `~/.local/bin`, chmod, done -- no
     /// checksum sidecar, no `install` subcommand, no service to register
-    /// and no `is_active` poll. No root needed: the per-user bin dir is
-    /// the same one release-binary addons land in.
+    /// and no `is_active` poll. No root needed. Release-binary addons
+    /// (`script: false`, e.g. systray) install to root-owned
+    /// `/usr/local/bin` instead (see `install_dir`) -- this webui can
+    /// detect and uninstall them, but installing needs
+    /// `contrib/install-tetron-suite.sh` run by hand (see `install()`).
     pub script: bool,
     /// systemd --user unit name (Linux), matching whatever the addon's own
     /// `install` subcommand registers (its own `service.rs`). Unread on
@@ -48,13 +50,6 @@ pub struct AddonSpec {
     /// launchd label (macOS), same source. Unread on non-macOS builds.
     #[allow(dead_code)]
     pub macos_label: &'static str,
-    /// Whether this addon needs a graphical session to ever be useful
-    /// (systray's per-user unit targets `graphical-session.target` and
-    /// will simply never activate without one -- matches
-    /// `contrib/install-tetron-suite.sh`'s own `has_display` skip so a
-    /// headless install fails fast with a clear reason instead of a
-    /// confusing "never became active" error 10s later).
-    pub needs_display: bool,
     /// Whether this addon has an in-app instructions popup rendered from
     /// `ADDON_DETAILS` in app.js -- a "Details" button appears next to the
     /// row, opening the detail modal with step-by-step commands. Used by
@@ -91,7 +86,6 @@ pub const ADDONS: &[AddonSpec] = &[
         binary_name: "tetron-systray",
         linux_unit: "tetron-systray",
         macos_label: "com.tetron.systray",
-        needs_display: true,
         script: false,
         details: false,
     },
@@ -104,7 +98,6 @@ pub const ADDONS: &[AddonSpec] = &[
         binary_name: "tetron-backup.sh",
         linux_unit: "",
         macos_label: "",
-        needs_display: false,
         script: true,
         details: true,
     },
@@ -117,7 +110,6 @@ pub const ADDONS: &[AddonSpec] = &[
         binary_name: "",
         linux_unit: "",
         macos_label: "",
-        needs_display: false,
         script: false,
         details: false,
     },
@@ -130,7 +122,6 @@ pub const ADDONS: &[AddonSpec] = &[
         binary_name: "",
         linux_unit: "",
         macos_label: "",
-        needs_display: false,
         script: false,
         details: false,
     },
@@ -157,14 +148,26 @@ fn find(id: &str) -> anyhow::Result<&'static AddonSpec> {
         .ok_or_else(|| anyhow::anyhow!("unknown addon: {id}"))
 }
 
-fn install_dir() -> anyhow::Result<PathBuf> {
-    dirs::home_dir()
-        .map(|h| h.join(".local/bin"))
-        .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))
+/// Script addons (Config Backup) install unprivileged into `~/.local/bin`,
+/// unchanged -- no service, no `$PATH`-reachability concern the way a
+/// `systemd --user`-backed binary has. Release-binary addons (systray) now
+/// live at root-owned `/usr/local/bin`, matching `tetron`/`tetron-webui`
+/// and `contrib/install-tetron-suite.sh`'s own convention -- this used to
+/// be `~/.local/bin` here too, which let this webui and the shell
+/// installer each place a binary at a different path, leaving two
+/// independent copies on a machine that used both.
+fn install_dir(spec: &AddonSpec) -> anyhow::Result<PathBuf> {
+    if spec.script {
+        dirs::home_dir()
+            .map(|h| h.join(".local/bin"))
+            .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))
+    } else {
+        Ok(PathBuf::from("/usr/local/bin"))
+    }
 }
 
 fn binary_path(spec: &AddonSpec) -> anyhow::Result<PathBuf> {
-    Ok(install_dir()?.join(spec.binary_name))
+    Ok(install_dir(spec)?.join(spec.binary_name))
 }
 
 /// Whether the addon's per-user service is currently registered+active --
@@ -224,46 +227,10 @@ pub async fn list_status() -> Vec<AddonStatus> {
     out
 }
 
-fn asset_suffix() -> anyhow::Result<&'static str> {
-    match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("linux", "x86_64") => Ok("linux-x86_64"),
-        ("linux", "aarch64") => Ok("linux-aarch64"),
-        ("macos", "x86_64") => Ok("macos-x86_64"),
-        ("macos", "aarch64") => Ok("macos-aarch64"),
-        (os, arch) => anyhow::bail!("unsupported platform: {os}-{arch}"),
-    }
-}
-
 async fn run_ok(cmd: &mut Command) -> anyhow::Result<()> {
     let status = cmd.status().await?;
     anyhow::ensure!(status.success(), "command exited with {status}");
     Ok(())
-}
-
-async fn verify_checksum(file: &Path, sumfile: &Path) -> anyhow::Result<()> {
-    let dir = file
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("temp file has no parent directory"))?;
-    let sumfile_name = sumfile
-        .file_name()
-        .ok_or_else(|| anyhow::anyhow!("checksum file has no name"))?;
-    let use_shasum = Command::new("sha256sum")
-        .arg("--version")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map(|s| !s.success())
-        .unwrap_or(true);
-    let mut cmd = if use_shasum {
-        let mut c = Command::new("shasum");
-        c.args(["-a", "256"]);
-        c
-    } else {
-        Command::new("sha256sum")
-    };
-    cmd.arg("-c").arg(sumfile_name).current_dir(dir);
-    run_ok(&mut cmd).await
 }
 
 async fn set_executable(path: &Path) -> anyhow::Result<()> {
@@ -277,36 +244,19 @@ async fn set_executable(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Same reasoning as `contrib/install-tetron-suite.sh`'s own
-/// `has_display()`: macOS is assumed to always have one (a headless Mac
-/// is rare enough not to special-case); Linux is checked explicitly.
-/// **Caveat, unlike the shell script:** this only sees the webui
-/// process's *own* environment, which can lack `$DISPLAY`/
-/// `$WAYLAND_DISPLAY` even on a real desktop if webui itself runs as a
-/// `systemd --user` service that never imported them (a common systemd
-/// gotcha, independent of whether a graphical session actually exists --
-/// systray's own unit targets `graphical-session.target`, a separate,
-/// more reliable systemd-level signal this check doesn't have access
-/// to). So this is treated as an advisory signal in `install()` below,
-/// not a hard block -- a false "no display" reading must never prevent a
-/// real install from proceeding.
-fn has_display() -> bool {
-    if std::env::consts::OS != "linux" {
-        return true;
-    }
-    std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok()
-}
-
-/// Fetch+verify+install one addon: download the release asset + its
-/// `.sha256` sidecar into a private temp dir, verify, copy to
-/// `~/.local/bin`, then run the addon's own `install` subcommand to
-/// register its per-user service -- the same end state a manual
-/// `contrib/install-tetron-suite.sh` run would leave.
+/// Script addons (Config Backup) install themselves via `install_script`
+/// below -- curl the raw file from the effective `backup_script_url()`
+/// into `~/.local/bin`, chmod, done. No checksum sidecar (the file has
+/// none upstream), no service, no root.
 ///
-/// Script addons (Config Backup) take the much shorter path:
-/// `install_script` below -- curl the raw file from the effective
-/// `backup_script_url()` into `~/.local/bin`, chmod, done. No checksum
-/// sidecar (the file has none upstream), no service, no root.
+/// Release-binary addons (systray) install to root-owned
+/// `/usr/local/bin` (see `install_dir`), which this webui -- running
+/// unprivileged -- cannot write to itself. Rather than prompt for a
+/// password through a web form (a real anti-pattern: never ask for root
+/// credentials over HTTP), this points at
+/// `contrib/install-tetron-suite.sh`, the same installer `tetron`/
+/// `tetron-webui` themselves are installed with, which the user runs at
+/// a real terminal with their own sudo.
 pub async fn install(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
     anyhow::ensure!(
@@ -318,64 +268,12 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
     if spec.script {
         return install_script(spec).await;
     }
-    let display_caveat = spec.needs_display && !has_display();
-    let suffix = asset_suffix()?;
-    let asset = format!("{}-{suffix}", spec.binary_name);
-    let base = format!("https://github.com/{}/releases/latest/download/{asset}", spec.github_repo);
-
-    let tmpdir = tempfile::Builder::new().prefix("tetron-webui-addon-").tempdir()?;
-    let asset_path = tmpdir.path().join(&asset);
-    let sum_path = tmpdir.path().join(format!("{asset}.sha256"));
-
-    run_ok(Command::new("curl").args(["-fsSL", "-o"]).arg(&asset_path).arg(&base)).await
-        .map_err(|e| anyhow::anyhow!("failed to download {asset}: {e}"))?;
-    run_ok(Command::new("curl").args(["-fsSL", "-o"]).arg(&sum_path).arg(format!("{base}.sha256"))).await
-        .map_err(|e| anyhow::anyhow!("failed to download {asset}.sha256: {e}"))?;
-    verify_checksum(&asset_path, &sum_path).await
-        .map_err(|e| anyhow::anyhow!("checksum verification failed: {e}"))?;
-
-    let dest = binary_path(spec)?;
-    tokio::fs::create_dir_all(install_dir()?).await?;
-    tokio::fs::copy(&asset_path, &dest).await
-        .map_err(|e| anyhow::anyhow!("failed to install to {}: {e}", dest.display()))?;
-    set_executable(&dest).await?;
-
-    let install_failed_msg = |e: anyhow::Error| {
-        if display_caveat {
-            anyhow::anyhow!(
-                "{} downloaded but its own install step failed: {e} \
-                 (no $DISPLAY/$WAYLAND_DISPLAY seen in webui's own environment -- \
-                 if this host does have a desktop session, webui's service may need \
-                 `systemctl --user import-environment DISPLAY WAYLAND_DISPLAY`; \
-                 otherwise install this on a machine with one instead)",
-                spec.display_name
-            )
-        } else {
-            anyhow::anyhow!("{} downloaded but its own install step failed: {e}", spec.display_name)
-        }
-    };
-
-    run_ok(Command::new(&dest).arg("install")).await.map_err(install_failed_msg)?;
-
-    // The addon's own `install` exit code isn't proof it's actually
-    // running -- found live: a crash-looping GUI process (no display)
-    // can still exit 0 from `install` if systemd briefly reports "active"
-    // between restart attempts, right when that subcommand's own
-    // wait-for-active poll happens to land. Re-check after a beat with
-    // our own independent poll before declaring success. Materially
-    // closes the race on Linux (systemctl --user is-active is a live
-    // check); on macOS this inherits tetron-systray's own documented
-    // `is_active()` limitation (`launchctl list` only proves the job is
-    // loaded, not still running a few seconds later) -- a real remaining
-    // gap there, not one this re-check can paper over from the outside.
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-    if !is_active(spec).await {
-        return Err(install_failed_msg(anyhow::anyhow!(
-            "service was installed but is not running (may be crash-looping -- check its logs)"
-        )));
-    }
-
-    Ok(format!("{} installed and running.", spec.display_name))
+    anyhow::bail!(
+        "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
+         Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh \
+         | bash -s -- --install-{id}",
+        spec.display_name
+    );
 }
 
 /// The Config Backup path: fetch the raw script from the effective
@@ -397,7 +295,7 @@ async fn install_script(spec: &AddonSpec) -> anyhow::Result<String> {
         meta.len() > 0,
         "downloaded script from {url} is empty -- aborting install"
     );
-    tokio::fs::create_dir_all(install_dir()?).await?;
+    tokio::fs::create_dir_all(install_dir(spec)?).await?;
     tokio::fs::copy(&tmp_path, &dest).await
         .map_err(|e| anyhow::anyhow!("failed to install to {}: {e}", dest.display()))?;
     set_executable(&dest).await?;
@@ -414,21 +312,16 @@ async fn install_script(spec: &AddonSpec) -> anyhow::Result<String> {
 /// stops+deregisters the addon's own per-user service (its own `uninstall`
 /// subcommand -- `systemctl --user disable --now` / `launchctl unload` plus
 /// removing the unit/plist and, on macOS, the `.app` bundle it copied
-/// itself into) and then removes the binary this webui installed at `dest`.
+/// itself into) and then tries to remove the binary at `dest`.
 ///
-/// **The binary-removal step is the actual point of this being a *webui*
-/// concern rather than just delegating entirely to the addon's own
-/// subcommand:** the addon's `uninstall` only knows how to tear down what
-/// it registered (the service), not the file webui itself placed at
-/// `~/.local/bin/<binary>` -- it has no way to know it should delete its
-/// own currently-running executable out from under itself. Found live
-/// (2026-07-25, xps-17-9720): the service genuinely does stop and the tray
-/// icon genuinely does disappear -- `run_ok` below was never the bug -- but
-/// the ~4MB binary was left behind afterward, which reads as "Uninstall
-/// didn't actually uninstall it" even though the running addon is gone.
-/// Best-effort: a failure to delete the file (e.g. permissions) does not
-/// undo the service teardown that already succeeded, so it is reported
-/// distinctly rather than surfaced as a full failure of the whole action.
+/// **The binary-removal step is best-effort, expected to routinely fail:**
+/// the addon's own `uninstall` only tears down what it registered (the
+/// service); `dest` for a release-binary addon is now root-owned
+/// `/usr/local/bin/<binary>` (see `install_dir`), which this unprivileged
+/// webui cannot delete. A failed removal does not undo the service
+/// teardown that already succeeded -- it is reported distinctly ("stopped,
+/// but could not remove the binary -- delete it manually") rather than
+/// surfaced as a failure of the whole action.
 pub async fn uninstall(id: &str) -> anyhow::Result<String> {
     let spec = find(id)?;
     anyhow::ensure!(

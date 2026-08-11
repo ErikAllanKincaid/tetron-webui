@@ -420,7 +420,7 @@ function renderNetworkRow(net, myShortId) {
       ${standbyBadge}
     </div>
     <div class="network-body">
-      <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
+      <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""}${net.my_hostname ? ` · host ${net.my_hostname}` : ""} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
       ${peerTable}
       ${renderNukeBanner(net)}
       <div class="action-row">
