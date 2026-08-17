@@ -420,7 +420,7 @@ function renderNetworkRow(net, myShortId) {
       ${standbyBadge}
     </div>
     <div class="network-body">
-      <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""}${net.my_hostname ? ` · host ${net.my_hostname}` : ""} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
+      <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""} · host ${net.my_hostname || net.my_ip} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
       ${peerTable}
       ${renderNukeBanner(net)}
       <div class="action-row">
@@ -571,6 +571,7 @@ document.getElementById("networks").addEventListener("click", async (e) => {
     if (!net) return;
     const rows = [
       { label: "role", value: net.role },
+      { label: "hostname", value: net.my_hostname || net.my_ip },
       { label: "interface", value: net.tun_name },
       { label: "members", value: String(net.member_count) },
       { label: "my ip", value: net.my_ip, copyable: true },
