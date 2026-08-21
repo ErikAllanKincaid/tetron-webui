@@ -580,3 +580,98 @@ pub async fn addon_uninstall(Path(id): Path<String>) -> Json<ActionResult> {
         Err(e) => ActionResult::err(e.to_string()),
     }
 }
+
+// ---------------------------------------------------------------------
+// Sync Receiver addon: live configuration, all shelled out through
+// `sync_receiver.rs` to the installed `tetron-sync-receiver` binary's own
+// CLI (`--json`) -- this webui never reimplements rsyncd.conf/module/
+// allow-list logic itself. Same reachability-over-hard-failure shape as
+// `get_status` (BAD_GATEWAY + ActionResult::err on failure, e.g. the addon
+// not being installed) rather than a bare 500.
+// ---------------------------------------------------------------------
+
+pub async fn sync_receiver_status() -> Response {
+    match crate::sync_receiver::status().await {
+        Ok(status) => Json(status).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, ActionResult::err(e.to_string())).into_response(),
+    }
+}
+
+pub async fn sync_receiver_modules_list() -> Response {
+    match crate::sync_receiver::list_modules().await {
+        Ok(modules) => Json(modules).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, ActionResult::err(e.to_string())).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct ModuleAddReq {
+    name: String,
+    path: String,
+}
+
+pub async fn sync_receiver_module_add(Json(req): Json<ModuleAddReq>) -> Json<ActionResult> {
+    match crate::sync_receiver::add_module(&req.name, &req.path).await {
+        Ok(()) => ActionResult::ok(format!("Module '{}' saved.", req.name)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn sync_receiver_module_remove(Path(name): Path<String>) -> Json<ActionResult> {
+    match crate::sync_receiver::remove_module(&name).await {
+        Ok(()) => ActionResult::ok(format!("Module '{name}' removed.")),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn sync_receiver_allow_list() -> Response {
+    match crate::sync_receiver::list_allow().await {
+        Ok(ips) => Json(ips).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, ActionResult::err(e.to_string())).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AllowAddReq {
+    ip: String,
+}
+
+pub async fn sync_receiver_allow_add(Json(req): Json<AllowAddReq>) -> Json<ActionResult> {
+    match crate::sync_receiver::add_allow_ip(&req.ip).await {
+        Ok(()) => ActionResult::ok(format!("'{}' allowed.", req.ip)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AllowAddPeerReq {
+    hostname: String,
+}
+
+pub async fn sync_receiver_allow_add_peer(Json(req): Json<AllowAddPeerReq>) -> Json<ActionResult> {
+    match crate::sync_receiver::add_allow_peer(&req.hostname).await {
+        Ok(()) => ActionResult::ok(format!("'{}' allowed.", req.hostname)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn sync_receiver_allow_remove(Path(ip): Path<String>) -> Json<ActionResult> {
+    match crate::sync_receiver::remove_allow(&ip).await {
+        Ok(()) => ActionResult::ok(format!("'{ip}' removed.")),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn sync_receiver_enable() -> Json<ActionResult> {
+    match crate::sync_receiver::enable().await {
+        Ok(()) => ActionResult::ok("Sync Receiver started.".to_string()),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn sync_receiver_disable() -> Json<ActionResult> {
+    match crate::sync_receiver::disable().await {
+        Ok(()) => ActionResult::ok("Sync Receiver stopped.".to_string()),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}

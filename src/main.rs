@@ -10,6 +10,7 @@ mod addons;
 mod api;
 mod ipc_client;
 mod service;
+mod sync_receiver;
 
 use axum::routing::{delete, get, post};
 use axum::response::IntoResponse;
@@ -245,7 +246,24 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/addons/{id}/uninstall", post(api::addon_uninstall))
         // Config-Backup addon: the script itself, fetched by the Details
         // popup's curl command
-        .route("/addons/tetron-backup.sh", get(serve_backup_script));
+        .route("/addons/tetron-backup.sh", get(serve_backup_script))
+        // Sync Receiver addon: live configuration, shelled out to the
+        // installed binary's own CLI (sync_receiver.rs) -- this webui never
+        // reimplements rsyncd.conf/module/allow-list logic itself.
+        .route("/api/sync-receiver/status", get(api::sync_receiver_status))
+        .route(
+            "/api/sync-receiver/modules",
+            get(api::sync_receiver_modules_list).post(api::sync_receiver_module_add),
+        )
+        .route("/api/sync-receiver/modules/{name}", delete(api::sync_receiver_module_remove))
+        .route(
+            "/api/sync-receiver/allow",
+            get(api::sync_receiver_allow_list).post(api::sync_receiver_allow_add),
+        )
+        .route("/api/sync-receiver/allow/peer", post(api::sync_receiver_allow_add_peer))
+        .route("/api/sync-receiver/allow/{ip}", delete(api::sync_receiver_allow_remove))
+        .route("/api/sync-receiver/enable", post(api::sync_receiver_enable))
+        .route("/api/sync-receiver/disable", post(api::sync_receiver_disable));
 
     let port = resolve_port();
     let addr = format!("127.0.0.1:{port}");

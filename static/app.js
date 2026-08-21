@@ -783,9 +783,14 @@ document.getElementById("join-form").addEventListener("submit", async (e) => {
 
 function renderAddonRow(addon) {
   const hasPopup = !!ADDON_DETAILS[addon.id];
-  // Popup addons (Config Backup) link straight to the script's home in
-  // the repo (contrib/ on main) instead of the repo root.
-  const repoLine = hasPopup
+  // A *script* popup addon (Config Backup: a bare script fetched from
+  // contrib/ on main, no release tag) links straight to that folder
+  // instead of the repo root -- `script_url` is only ever set for that
+  // addon (see addons.rs::AddonStatus), so it is the reliable signal, not
+  // `hasPopup` alone (Sync Receiver also has a popup, but is a normal
+  // versioned release binary, not a script in contrib/).
+  const isScriptPopup = !!addon.script_url;
+  const repoLine = isScriptPopup
     ? `<p class="addon-repo"><a class="addon-link" href="https://github.com/${addon.github_repo}/tree/main/contrib" target="_blank" rel="noopener">${addon.github_repo}/tree/main/contrib</a></p>`
     : `<p class="addon-repo"><a class="addon-link" href="https://github.com/${addon.github_repo}" target="_blank" rel="noopener">${addon.github_repo}</a></p>`;
 
@@ -808,16 +813,37 @@ function renderAddonRow(addon) {
     </div>`;
   }
 
-  // Installable addons get a single right-aligned button in the Systray
-  // spot. The reference look is the Systray "Uninstall" button (outline,
-  // btn-secondary) -- popup addons (Config Backup) keep that outline in
-  // BOTH states, since their button is a persistent "Backup" action, not
-  // an install toggle; plain addons toggle solid (Install) / outline
-  // (Uninstall) like before. One click on Backup installs the script if
-  // needed and opens the popup (see the "backup" branch below).
-  const action = hasPopup ? "backup" : (addon.installed ? "uninstall" : "install");
-  const label = hasPopup ? "Backup" : (addon.installed ? "Uninstall" : "Install");
-  const btnClass = hasPopup || addon.installed ? "btn-secondary" : "";
+  // Config Backup: a single persistent "Backup" button in both install
+  // states (outline throughout) -- one click installs the script if
+  // needed and opens the popup (see the "backup" branch in the click
+  // handler below). Unlike every other installable addon, it never shows
+  // a plain Install/Uninstall toggle on the row.
+  if (isScriptPopup) {
+    return `<div class="addon-row" data-addon="${addon.id}">
+      <div class="addon-info">
+        <span class="addon-name">${addon.display_name}</span>
+        <span class="addon-status ${addon.installed ? "installed" : "not-installed"}">${addon.installed ? "installed" : "not installed"}</span>
+        <p class="muted addon-description">${addon.description}</p>
+        ${repoLine}
+      </div>
+      <div class="addon-actions">
+        <button class="btn-small btn-secondary" data-action="backup" data-addon="${addon.id}">Backup</button>
+      </div>
+      <p class="form-result"></p>
+    </div>`;
+  }
+
+  // Every other installable addon: the normal Install/Uninstall toggle
+  // (reference look: Systray's outline "Uninstall" button). An addon that
+  // also has a live config popup (`details: true` but not a script, e.g.
+  // Sync Receiver) gets a second "Configure" button once installed --
+  // there is nothing to configure before the binary exists on this host.
+  const action = addon.installed ? "uninstall" : "install";
+  const label = addon.installed ? "Uninstall" : "Install";
+  const btnClass = addon.installed ? "btn-secondary" : "";
+  const configureBtn = hasPopup && addon.installed
+    ? `<button class="btn-small btn-secondary" data-action="configure" data-addon="${addon.id}">Configure</button>`
+    : "";
   return `<div class="addon-row" data-addon="${addon.id}">
     <div class="addon-info">
       <span class="addon-name">${addon.display_name}</span>
@@ -826,6 +852,7 @@ function renderAddonRow(addon) {
       ${repoLine}
     </div>
     <div class="addon-actions">
+      ${configureBtn}
       <button class="btn-small ${btnClass}" data-action="${action}" data-addon="${addon.id}">${label}</button>
     </div>
     <p class="form-result"></p>
@@ -870,7 +897,83 @@ const ADDON_DETAILS = {
         <p class="muted"><strong>Passphrase is the only key:</strong> lose it, lose the backup. Covers <code>secret_key</code>, <code>settings.toml</code>, and every <code>networks/*.toml</code>.</p>`;
     },
   },
+  "sync-receiver": {
+    title: "Sync Receiver",
+    // Real content is filled in by renderSyncReceiverPanel() right after
+    // the modal opens (see the "configure" click branch below) -- unlike
+    // Config Backup's body(), this one needs live data (status/modules/
+    // allow-list) fetched from the addon's own binary, not just static
+    // instructions, so body() only ever renders a loading placeholder.
+    body: () => `<p class="muted">Loading configuration…</p>`,
+  },
 };
+
+// Fetches status/modules/allow-list from the Sync Receiver addon's own
+// CLI (via tetron-webui's /api/sync-receiver/* proxy routes,
+// src/sync_receiver.rs) and renders the live config panel. Every mutating
+// control inside it (see the detailBody submit/click listeners further
+// down) re-calls this after a successful action instead of patching the
+// DOM in place -- simpler, and cheap enough given how rarely this popup
+// is open at all.
+async function renderSyncReceiverPanel() {
+  detailBody.innerHTML = `<p class="muted">Loading configuration…</p>`;
+  try {
+    const [status, modules, allow] = await Promise.all([
+      getJson("/api/sync-receiver/status"),
+      getJson("/api/sync-receiver/modules"),
+      getJson("/api/sync-receiver/allow"),
+    ]);
+    if (status.ok === false) throw new Error(status.error);
+    if (modules.ok === false) throw new Error(modules.error);
+    if (allow.ok === false) throw new Error(allow.error);
+    detailBody.innerHTML = syncReceiverPanelHtml(status, modules, allow);
+  } catch (e) {
+    detailBody.innerHTML = `<p class="muted">Could not load configuration: ${String(e.message || e)}</p>`;
+  }
+}
+
+function syncReceiverPanelHtml(status, modules, allow) {
+  const moduleRows = modules.length
+    ? modules.map((m) => `<tr><td>${m.name}</td><td><code>${m.path}</code></td><td><button class="btn-small btn-secondary" data-action="sr-module-remove" data-name="${m.name}">Remove</button></td></tr>`).join("")
+    : `<tr><td colspan="3" class="muted">No modules configured yet.</td></tr>`;
+  const allowRows = allow.length
+    ? allow.map((ip) => `<tr><td><code>${ip}</code></td><td><button class="btn-small btn-secondary" data-action="sr-allow-remove" data-ip="${ip}">Remove</button></td></tr>`).join("")
+    : `<tr><td colspan="2" class="muted">No IPs allowed yet -- every connection is denied.</td></tr>`;
+
+  return `
+    <p class="muted">Service: <strong>${status.active ? "running" : "stopped"}</strong> on port <code>${status.port}</code>.
+      <button class="btn-small ${status.active ? "btn-secondary" : ""}" data-action="sr-toggle" data-active="${status.active}">${status.active ? "Stop" : "Start"}</button>
+    </p>
+
+    <h4>Modules</h4>
+    <table class="peer-table"><tbody>${moduleRows}</tbody></table>
+    <form class="tab-panel" data-action="sr-module-add">
+      <input type="text" name="name" placeholder="name (e.g. photos)" required>
+      <input type="text" name="path" placeholder="/home/user/Pictures/phone-backup" required>
+      <button type="submit" class="btn-small">Add module</button>
+    </form>
+
+    <h4>Allowed mesh IPs</h4>
+    <table class="peer-table"><tbody>${allowRows}</tbody></table>
+    <form class="tab-panel" data-action="sr-allow-add-peer">
+      <input type="text" name="hostname" placeholder="peer hostname (from the mesh roster)" required>
+      <button type="submit" class="btn-small">Allow peer</button>
+    </form>
+    <form class="tab-panel" data-action="sr-allow-add-ip">
+      <input type="text" name="ip" placeholder="or a raw mesh IP" required>
+      <button type="submit" class="btn-small">Allow IP</button>
+    </form>
+    <p class="form-result"></p>
+  `;
+}
+
+function showSyncReceiverError(message) {
+  const out = detailBody.querySelector(".form-result");
+  if (out) {
+    out.textContent = message;
+    out.className = "form-result error";
+  }
+}
 
 // A copyable command block for the instructions popup. The copy handler is
 // the delegated listener on detailBody below (the #networks delegate can't
@@ -899,6 +1002,34 @@ detailBody.addEventListener("click", async (e) => {
     setTimeout(pollAddons, 1500);
     return;
   }
+  const modRemove = e.target.closest("[data-action='sr-module-remove']");
+  if (modRemove) {
+    modRemove.disabled = true;
+    const result = await deleteJson(`/api/sync-receiver/modules/${encodeURIComponent(modRemove.dataset.name)}`);
+    if (result.ok) renderSyncReceiverPanel();
+    else { modRemove.disabled = false; showSyncReceiverError(result.error); }
+    return;
+  }
+
+  const allowRemove = e.target.closest("[data-action='sr-allow-remove']");
+  if (allowRemove) {
+    allowRemove.disabled = true;
+    const result = await deleteJson(`/api/sync-receiver/allow/${encodeURIComponent(allowRemove.dataset.ip)}`);
+    if (result.ok) renderSyncReceiverPanel();
+    else { allowRemove.disabled = false; showSyncReceiverError(result.error); }
+    return;
+  }
+
+  const toggle = e.target.closest("[data-action='sr-toggle']");
+  if (toggle) {
+    toggle.disabled = true;
+    const active = toggle.dataset.active === "true";
+    const result = await postJson(`/api/sync-receiver/${active ? "disable" : "enable"}`, {});
+    if (result.ok) renderSyncReceiverPanel();
+    else { toggle.disabled = false; showSyncReceiverError(result.error); }
+    return;
+  }
+
   const el = e.target.closest("[data-action='copy']");
   if (!el) return;
   navigator.clipboard.writeText(el.dataset.copy).then(() => {
@@ -906,6 +1037,37 @@ detailBody.addEventListener("click", async (e) => {
     el.textContent = "✓";
     setTimeout(() => { el.textContent = original; }, 900);
   });
+});
+
+// Sync Receiver's three config forms (add module, allow peer, allow IP) --
+// delegated the same way as detailBody's click listener above, since the
+// forms are re-created from scratch every renderSyncReceiverPanel() call.
+detailBody.addEventListener("submit", async (e) => {
+  const form = e.target.closest("form[data-action]");
+  if (!form) return;
+  e.preventDefault();
+  const { action } = form.dataset;
+  const data = Object.fromEntries(new FormData(form).entries());
+  const submitBtn = form.querySelector("button[type='submit']");
+  submitBtn.disabled = true;
+
+  let result;
+  if (action === "sr-module-add") {
+    result = await postJson("/api/sync-receiver/modules", { name: data.name, path: data.path });
+  } else if (action === "sr-allow-add-peer") {
+    result = await postJson("/api/sync-receiver/allow/peer", { hostname: data.hostname });
+  } else if (action === "sr-allow-add-ip") {
+    result = await postJson("/api/sync-receiver/allow", { ip: data.ip });
+  } else {
+    submitBtn.disabled = false;
+    return;
+  }
+
+  if (result.ok) renderSyncReceiverPanel();
+  else {
+    submitBtn.disabled = false;
+    showSyncReceiverError(result.error);
+  }
 });
 
 // Last addon statuses from /api/addons, kept so the Details handler can
@@ -975,6 +1137,20 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
     detailTitle.textContent = detail.title;
     detailBody.innerHTML = detail.body({ ...current, installed });
     detailModal.classList.remove("hidden");
+    return;
+  }
+
+  // "Configure" button (an already-installed addon with a live config
+  // popup, e.g. Sync Receiver): open the popup and immediately kick off
+  // the real fetch -- unlike "backup"/"details" above, body() alone is
+  // just a loading placeholder here.
+  if (action === "configure") {
+    const detail = ADDON_DETAILS[addon];
+    if (!detail) return;
+    detailTitle.textContent = detail.title;
+    detailBody.innerHTML = detail.body();
+    detailModal.classList.remove("hidden");
+    if (addon === "sync-receiver") renderSyncReceiverPanel();
     return;
   }
 

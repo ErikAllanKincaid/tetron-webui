@@ -102,6 +102,18 @@ pub const ADDONS: &[AddonSpec] = &[
         details: true,
     },
     AddonSpec {
+        id: "sync-receiver",
+        display_name: "Sync Receiver",
+        description: "Headless home-side rsync receiver for tetron-mobile-sync (Android photo backup) -- modules and mesh-IP allow-list configured live from this webui.",
+        github_repo: "ErikAllanKincaid/tetron-sync-receiver",
+        installable: true,
+        binary_name: "tetron-sync-receiver",
+        linux_unit: "tetron-sync-receiver",
+        macos_label: "com.tetron.sync-receiver",
+        script: false,
+        details: true,
+    },
+    AddonSpec {
         id: "relay",
         display_name: "Relay",
         description: "Bringup tool that turns a plain Linux server into a self-hosted iroh relay for your fleet's NAT-traversal fallback.",
