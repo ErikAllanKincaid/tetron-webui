@@ -945,6 +945,13 @@ function syncReceiverPanelHtml(status, modules, allow) {
       <button class="btn-small ${status.active ? "btn-secondary" : ""}" data-action="sr-toggle" data-active="${status.active}">${status.active ? "Stop" : "Start"}</button>
     </p>
 
+    <h4>Port</h4>
+    <form class="tab-panel" data-action="sr-set-port">
+      <input type="number" name="port" min="1025" max="65535" value="${status.port}" required>
+      <button type="submit" class="btn-small">Change port</button>
+    </form>
+    <p class="muted" style="color: var(--status-down);">Must match the port configured on the phone (tetron-mobile-sync's Settings screen) -- if they don't match, backups fail with a socket error. Changing this restarts the service if it's running.</p>
+
     <h4>Modules</h4>
     <table class="peer-table"><tbody>${moduleRows}</tbody></table>
     <form class="tab-panel" data-action="sr-module-add">
@@ -1058,6 +1065,8 @@ detailBody.addEventListener("submit", async (e) => {
     result = await postJson("/api/sync-receiver/allow/peer", { hostname: data.hostname });
   } else if (action === "sr-allow-add-ip") {
     result = await postJson("/api/sync-receiver/allow", { ip: data.ip });
+  } else if (action === "sr-set-port") {
+    result = await postJson("/api/sync-receiver/port", { port: Number(data.port) });
   } else {
     submitBtn.disabled = false;
     return;

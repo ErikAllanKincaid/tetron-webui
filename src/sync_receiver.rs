@@ -100,3 +100,12 @@ pub async fn enable() -> anyhow::Result<()> {
 pub async fn disable() -> anyhow::Result<()> {
     run_ok(&["receiver", "disable"]).await
 }
+
+/// Restarts the service if it's currently active (the receiver's own
+/// `receiver port` subcommand handles that -- see that repo's
+/// `service::restart_if_active`). Whoever configured the phone side
+/// (tetron-mobile-sync's Settings screen) must set the exact same port,
+/// or transfers fail with a socket error -- same warning shown there.
+pub async fn set_port(port: u16) -> anyhow::Result<()> {
+    run_ok(&["receiver", "port", &port.to_string()]).await
+}

@@ -675,3 +675,15 @@ pub async fn sync_receiver_disable() -> Json<ActionResult> {
         Err(e) => ActionResult::err(e.to_string()),
     }
 }
+
+#[derive(Deserialize)]
+pub struct PortReq {
+    port: u16,
+}
+
+pub async fn sync_receiver_set_port(Json(req): Json<PortReq>) -> Json<ActionResult> {
+    match crate::sync_receiver::set_port(req.port).await {
+        Ok(()) => ActionResult::ok(format!("Port changed to {}.", req.port)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}

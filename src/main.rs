@@ -263,7 +263,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sync-receiver/allow/peer", post(api::sync_receiver_allow_add_peer))
         .route("/api/sync-receiver/allow/{ip}", delete(api::sync_receiver_allow_remove))
         .route("/api/sync-receiver/enable", post(api::sync_receiver_enable))
-        .route("/api/sync-receiver/disable", post(api::sync_receiver_disable));
+        .route("/api/sync-receiver/disable", post(api::sync_receiver_disable))
+        .route("/api/sync-receiver/port", post(api::sync_receiver_set_port));
 
     let port = resolve_port();
     let addr = format!("127.0.0.1:{port}");
