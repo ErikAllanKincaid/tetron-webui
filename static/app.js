@@ -954,6 +954,7 @@ function syncReceiverPanelHtml(status, modules, allow) {
 
     <h4>Modules</h4>
     <table class="peer-table"><tbody>${moduleRows}</tbody></table>
+    <p class="muted">A module is one folder that can serve several phones: each phone writes into its own <code>&lt;module&gt;/&lt;device-label&gt;/</code> subfolder, created by the phone. You do not need a module per device. Modules are upload-only and accept one transfer at a time.</p>
     <form class="tab-panel" data-action="sr-module-add">
       <input type="text" name="name" placeholder="name (e.g. photos)" required>
       <input type="text" name="path" placeholder="/home/user/Pictures/phone-backup" required>
