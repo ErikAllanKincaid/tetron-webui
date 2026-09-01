@@ -932,45 +932,90 @@ async function renderSyncReceiverPanel() {
   }
 }
 
+// Mesh peers eligible to be added to the allow-list: every peer across
+// every network in the last /api/status poll (lastStatus), minus the ones
+// already allowed and minus this host's own addresses. De-duped by IP,
+// sorted by hostname. Empty when the roster has not loaded yet -- the
+// panel falls back to a free-text address field in that case.
+function srAllowablePeers(allow) {
+  const s = lastStatus;
+  if (!s || !Array.isArray(s.networks)) return [];
+  const allowed = new Set(allow);
+  const mine = new Set();
+  for (const net of s.networks) if (net.my_ip) mine.add(net.my_ip);
+  const byIp = new Map();
+  for (const net of s.networks) {
+    for (const p of net.peers || []) {
+      if (!p.ip || allowed.has(p.ip) || mine.has(p.ip) || byIp.has(p.ip)) continue;
+      byIp.set(p.ip, { ip: p.ip, hostname: p.hostname || "" });
+    }
+  }
+  return [...byIp.values()].sort((a, b) =>
+    (a.hostname || a.ip).localeCompare(b.hostname || b.ip));
+}
+
 function syncReceiverPanelHtml(status, modules, allow) {
-  const moduleRows = modules.length
+  const dest = (modules.find((m) => m.name === "tetron-sync") || {}).path || "";
+  const advancedRows = modules.length
     ? modules.map((m) => `<tr><td>${m.name}</td><td><code>${m.path}</code></td><td><button class="btn-small btn-secondary" data-action="sr-module-remove" data-name="${m.name}">Remove</button></td></tr>`).join("")
     : `<tr><td colspan="3" class="muted">No modules configured yet.</td></tr>`;
   const allowRows = allow.length
     ? allow.map((ip) => `<tr><td><code>${ip}</code></td><td><button class="btn-small btn-secondary" data-action="sr-allow-remove" data-ip="${ip}">Remove</button></td></tr>`).join("")
-    : `<tr><td colspan="2" class="muted">No IPs allowed yet -- every connection is denied.</td></tr>`;
+    : `<tr><td colspan="2" class="muted">No peers allowed yet -- every connection is denied.</td></tr>`;
+
+  const peers = srAllowablePeers(allow);
+  const allowAdd = peers.length
+    ? `<form class="tab-panel" data-action="sr-allow-add">
+         <select name="addr" required>
+           <option value="" disabled selected>Choose a mesh peer…</option>
+           ${peers.map((p) => `<option value="${p.ip}">${p.hostname ? `${p.hostname} (${p.ip})` : p.ip}</option>`).join("")}
+         </select>
+         <button type="submit" class="btn-small">Allow</button>
+         <button type="button" class="btn-small btn-secondary" data-action="sr-allow-manual">Type an address</button>
+       </form>
+       <form class="tab-panel" data-action="sr-allow-add" data-manual hidden>
+         <input type="text" name="addr" placeholder="mesh IP or hostname" required>
+         <button type="submit" class="btn-small">Allow</button>
+       </form>`
+    : `<form class="tab-panel" data-action="sr-allow-add">
+         <input type="text" name="addr" placeholder="mesh IP or hostname" required>
+         <button type="submit" class="btn-small">Allow</button>
+       </form>
+       <p class="muted">Mesh roster not loaded -- enter an address directly.</p>`;
 
   return `
     <p class="muted">Service: <strong>${status.active ? "running" : "stopped"}</strong> on port <code>${status.port}</code>.
       <button class="btn-small ${status.active ? "btn-secondary" : ""}" data-action="sr-toggle" data-active="${status.active}">${status.active ? "Stop" : "Start"}</button>
     </p>
 
+    <h4>Allowed mesh peers</h4>
+    <table class="peer-table"><tbody>${allowRows}</tbody></table>
+    ${allowAdd}
+
+    <h4>Backup destination directory</h4>
+    <form class="tab-panel" data-action="sr-set-dir">
+      <input type="text" name="path" placeholder="/home/user/Pictures/phone-backup" value="${dest}" required>
+      <button type="submit" class="btn-small">Save</button>
+    </form>
+    <p class="muted">One folder holds backups from several phones: each phone writes into its own <code>&lt;dir&gt;/&lt;device-label&gt;/</code> subfolder, created by the phone. Upload-only, one transfer at a time. The phone connects to this as <code>rsync://&lt;this-host&gt;:${status.port}/tetron-sync/</code> automatically -- nothing to configure on the phone.</p>
+
+    <details class="tab-panel">
+      <summary>Advanced: multiple modules</summary>
+      <p class="muted">Only needed for more than one destination, or to rename the default <code>tetron-sync</code> module. A renamed or extra module must be set by hand in the phone's Settings (Connection section) to match -- there is no discovery.</p>
+      <table class="peer-table"><tbody>${advancedRows}</tbody></table>
+      <form class="tab-panel" data-action="sr-module-add">
+        <input type="text" name="name" placeholder="module name" required>
+        <input type="text" name="path" placeholder="/home/user/other-folder" required>
+        <button type="submit" class="btn-small">Add module</button>
+      </form>
+    </details>
+
     <h4>Port</h4>
     <form class="tab-panel" data-action="sr-set-port">
       <input type="number" name="port" min="1025" max="65535" value="${status.port}" required>
       <button type="submit" class="btn-small">Change port</button>
     </form>
-    <p class="muted" style="color: var(--status-down);">Must match the port configured on the phone (tetron-mobile-sync's Settings screen) -- if they don't match, backups fail with a socket error. Changing this restarts the service if it's running.</p>
-
-    <h4>Modules</h4>
-    <table class="peer-table"><tbody>${moduleRows}</tbody></table>
-    <p class="muted">A module is one folder that can serve several phones: each phone writes into its own <code>&lt;module&gt;/&lt;device-label&gt;/</code> subfolder, created by the phone. You do not need a module per device. Modules are upload-only and accept one transfer at a time.</p>
-    <form class="tab-panel" data-action="sr-module-add">
-      <input type="text" name="name" placeholder="name (e.g. photos)" required>
-      <input type="text" name="path" placeholder="/home/user/Pictures/phone-backup" required>
-      <button type="submit" class="btn-small">Add module</button>
-    </form>
-
-    <h4>Allowed mesh IPs</h4>
-    <table class="peer-table"><tbody>${allowRows}</tbody></table>
-    <form class="tab-panel" data-action="sr-allow-add-peer">
-      <input type="text" name="hostname" placeholder="peer hostname (from the mesh roster)" required>
-      <button type="submit" class="btn-small">Allow peer</button>
-    </form>
-    <form class="tab-panel" data-action="sr-allow-add-ip">
-      <input type="text" name="ip" placeholder="or a raw mesh IP" required>
-      <button type="submit" class="btn-small">Allow IP</button>
-    </form>
+    <p class="muted" style="color: var(--status-down);">Rarely changed. Must match the port configured on the phone (tetron-mobile-sync's Settings screen) -- if they do not match, backups fail with a socket error. Changing this restarts the service if it is running.</p>
     <p class="form-result"></p>
   `;
 }
@@ -1038,6 +1083,15 @@ detailBody.addEventListener("click", async (e) => {
     return;
   }
 
+  // Swap the "choose a mesh peer" dropdown for a free-text address field
+  // (rare manual case: a peer not in the roster).
+  const allowManual = e.target.closest("[data-action='sr-allow-manual']");
+  if (allowManual) {
+    const forms = detailBody.querySelectorAll("form[data-action='sr-allow-add']");
+    forms.forEach((f) => { f.hidden = !f.hidden; });
+    return;
+  }
+
   const el = e.target.closest("[data-action='copy']");
   if (!el) return;
   navigator.clipboard.writeText(el.dataset.copy).then(() => {
@@ -1047,9 +1101,10 @@ detailBody.addEventListener("click", async (e) => {
   });
 });
 
-// Sync Receiver's three config forms (add module, allow peer, allow IP) --
-// delegated the same way as detailBody's click listener above, since the
-// forms are re-created from scratch every renderSyncReceiverPanel() call.
+// Sync Receiver's config forms (allow add, backup destination, port, and
+// the Advanced add-module form) -- delegated the same way as detailBody's
+// click listener above, since the forms are re-created from scratch every
+// renderSyncReceiverPanel() call.
 detailBody.addEventListener("submit", async (e) => {
   const form = e.target.closest("form[data-action]");
   if (!form) return;
@@ -1062,10 +1117,12 @@ detailBody.addEventListener("submit", async (e) => {
   let result;
   if (action === "sr-module-add") {
     result = await postJson("/api/sync-receiver/modules", { name: data.name, path: data.path });
-  } else if (action === "sr-allow-add-peer") {
-    result = await postJson("/api/sync-receiver/allow/peer", { hostname: data.hostname });
-  } else if (action === "sr-allow-add-ip") {
-    result = await postJson("/api/sync-receiver/allow", { ip: data.ip });
+  } else if (action === "sr-allow-add") {
+    // The receiver's `allow add` takes an IP or a hostname (auto-detected),
+    // so one field covers the dropdown pick and the manual case alike.
+    result = await postJson("/api/sync-receiver/allow", { ip: data.addr.trim() });
+  } else if (action === "sr-set-dir") {
+    result = await postJson("/api/sync-receiver/dir", { path: data.path.trim() });
   } else if (action === "sr-set-port") {
     result = await postJson("/api/sync-receiver/port", { port: Number(data.port) });
   } else {

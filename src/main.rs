@@ -256,6 +256,7 @@ async fn main() -> anyhow::Result<()> {
             get(api::sync_receiver_modules_list).post(api::sync_receiver_module_add),
         )
         .route("/api/sync-receiver/modules/{name}", delete(api::sync_receiver_module_remove))
+        .route("/api/sync-receiver/dir", post(api::sync_receiver_set_dir))
         .route(
             "/api/sync-receiver/allow",
             get(api::sync_receiver_allow_list).post(api::sync_receiver_allow_add),

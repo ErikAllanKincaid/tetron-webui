@@ -624,6 +624,18 @@ pub async fn sync_receiver_module_remove(Path(name): Path<String>) -> Json<Actio
     }
 }
 
+#[derive(Deserialize)]
+pub struct DirReq {
+    path: String,
+}
+
+pub async fn sync_receiver_set_dir(Json(req): Json<DirReq>) -> Json<ActionResult> {
+    match crate::sync_receiver::set_dir(&req.path).await {
+        Ok(()) => ActionResult::ok(format!("Backup destination set to '{}'.", req.path)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
 pub async fn sync_receiver_allow_list() -> Response {
     match crate::sync_receiver::list_allow().await {
         Ok(ips) => Json(ips).into_response(),

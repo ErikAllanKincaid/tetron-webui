@@ -69,8 +69,15 @@ pub async fn list_modules() -> anyhow::Result<Vec<Module>> {
     run_json(&["module", "list"]).await
 }
 
+/// Point the default `tetron-sync` module at `path` -- the one command a
+/// normal setup runs. The panel's "Backup destination directory" field
+/// calls this; `add_module`/`remove_module` stay for the Advanced view.
+pub async fn set_dir(path: &str) -> anyhow::Result<()> {
+    run_ok(&["module", "set-dir", path]).await
+}
+
 pub async fn add_module(name: &str, path: &str) -> anyhow::Result<()> {
-    run_ok(&["module", "add", name, path]).await
+    run_ok(&["module", "add", "--name", name, path]).await
 }
 
 pub async fn remove_module(name: &str) -> anyhow::Result<()> {
