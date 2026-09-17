@@ -172,20 +172,69 @@ pub struct CreateReq {
     #[serde(default)]
     nuke_consensus: Option<u32>,
     /// tetron's `--tor` flag -- routes this network's transport over Tor
-    /// instead of relay/direct.
+    /// instead of relay/direct. Mutually exclusive with `veilid`, matching
+    /// tetron's own CLI (`conflicts_with`) -- checked in `resolve_transport`
+    /// below since this isn't a clap-parsed request.
     #[serde(default)]
     tor: bool,
+    /// tetron's `--veilid` flag -- routes this network's transport over a
+    /// tetron-veilid companion daemon instead of relay/direct.
+    #[serde(default)]
+    veilid: bool,
+}
+
+/// Resolves the mutually-exclusive `tor`/`veilid` checkboxes into tetron's
+/// `TransportMode`, mirroring the CLI's own `conflicts_with = "veilid"` /
+/// `conflicts_with = "tor"` constraint (`src/main.rs` in the main tetron
+/// crate) -- there is no clap parser here to enforce it for us, so both set
+/// is rejected explicitly rather than silently picking one.
+fn resolve_transport(tor: bool, veilid: bool) -> Result<Option<tetron_proto::TransportMode>, String> {
+    match (tor, veilid) {
+        (true, true) => Err("--tor and --veilid are mutually exclusive".to_string()),
+        (true, false) => Ok(Some(tetron_proto::TransportMode::Tor)),
+        (false, true) => Ok(Some(tetron_proto::TransportMode::Veilid)),
+        (false, false) => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod resolve_transport_tests {
+    use super::*;
+
+    #[test]
+    fn neither_checked_is_default_transport() {
+        assert_eq!(resolve_transport(false, false), Ok(None));
+    }
+
+    #[test]
+    fn tor_checked_alone() {
+        assert_eq!(resolve_transport(true, false), Ok(Some(tetron_proto::TransportMode::Tor)));
+    }
+
+    #[test]
+    fn veilid_checked_alone() {
+        assert_eq!(resolve_transport(false, true), Ok(Some(tetron_proto::TransportMode::Veilid)));
+    }
+
+    #[test]
+    fn both_checked_is_rejected() {
+        assert!(resolve_transport(true, true).is_err());
+    }
 }
 
 /// `POST /api/networks`. Always creates a closed (`Restricted`) network --
 /// tetron's own CLI removed the ability to create an open one
 /// (`MINIMAL-013`), so there is nothing to expose a toggle for here either.
 pub async fn create_network(Json(req): Json<CreateReq>) -> Response {
+    let transport = match resolve_transport(req.tor, req.veilid) {
+        Ok(t) => t,
+        Err(e) => return ActionResult::err(e).into_response(),
+    };
     let resp = call(IpcMessage::Create {
         mode: tetron_proto::GroupMode::Restricted,
         network_name: req.network_name,
         hostname: req.hostname,
-        transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
+        transport,
         subnet: req.subnet,
         nuke_consensus: req.nuke_consensus,
         force: false,
@@ -230,9 +279,14 @@ pub struct JoinReq {
     #[serde(default)]
     hostname: Option<String>,
     /// tetron's `--tor` flag -- should mirror the coordinator's own
-    /// transport if it used one.
+    /// transport if it used one. Mutually exclusive with `veilid`, checked
+    /// in `resolve_transport` (see `CreateReq::tor`'s own doc comment).
     #[serde(default)]
     tor: bool,
+    /// tetron's `--veilid` flag -- should mirror the coordinator's own
+    /// transport if it used one.
+    #[serde(default)]
+    veilid: bool,
 }
 
 /// Length of the random invite secret, in bytes. Mirrors `SECRET_LEN` in
@@ -372,11 +426,15 @@ pub async fn join_network(Json(req): Json<JoinReq>) -> Response {
         Ok(v) => v,
         Err(e) => return ActionResult::err(e).into_response(),
     };
+    let transport = match resolve_transport(req.tor, req.veilid) {
+        Ok(t) => t,
+        Err(e) => return ActionResult::err(e).into_response(),
+    };
     let resp = call(IpcMessage::Join {
         network_key: network_key.to_string(),
         alias: req.alias,
         hostname: req.hostname,
-        transport: req.tor.then_some(tetron_proto::TransportMode::Tor),
+        transport,
         invite: Some(secret),
         force: false,
     })

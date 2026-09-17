@@ -56,8 +56,27 @@ pub struct AddonSpec {
     /// Config Backup (the popup points at the script this webui proxies at
     /// /addons/tetron-backup.sh, plus the direct tetron-repo raw URL as a
     /// fallback); any future addon with setup docs can set this and add a
-    /// matching app.js entry.
+    /// matching app.js entry. Also used, independently of `installable`, by
+    /// link-only addons (Tor) that need setup instructions but have nothing
+    /// this webui itself installs.
     pub details: bool,
+    /// Whether this addon registers a systemd *system* unit (`systemctl`,
+    /// no `--user`) rather than a per-user one -- true only for
+    /// tetron-veilid, which needs a dedicated system user and root-owned
+    /// `/etc`/`/var/lib` paths, the same privilege tier as tetron core
+    /// itself, unlike systray/sync-receiver's per-user services. Changes
+    /// how `is_active()` polls and means `uninstall()` cannot delegate to
+    /// the addon binary's own `uninstall` subcommand (there isn't one --
+    /// `tetron-veilid-server` is upstream `veilid-server`, not a
+    /// tetron-authored CLI) the way every other installable addon does.
+    pub system_unit: bool,
+    /// Standalone install script URL for `script: false` addons whose
+    /// install command isn't `contrib/install-tetron-suite.sh
+    /// --install-<id>` (the shared installer, which only knows about
+    /// tetron's own core+addons) -- `None` uses that default. Set for
+    /// tetron-veilid, a separate repo/release cycle with its own dedicated
+    /// script (`contrib/install-tetron-veilid.sh`).
+    pub install_script_url: Option<&'static str>,
 }
 
 /// Where the Config Backup script lives upstream: the tetron repo's
@@ -88,6 +107,8 @@ pub const ADDONS: &[AddonSpec] = &[
         macos_label: "com.tetron.systray",
         script: false,
         details: false,
+        system_unit: false,
+        install_script_url: None,
     },
     AddonSpec {
         id: "backup",
@@ -100,6 +121,8 @@ pub const ADDONS: &[AddonSpec] = &[
         macos_label: "",
         script: true,
         details: true,
+        system_unit: false,
+        install_script_url: None,
     },
     AddonSpec {
         id: "sync-receiver",
@@ -112,6 +135,38 @@ pub const ADDONS: &[AddonSpec] = &[
         macos_label: "com.tetron.sync-receiver",
         script: false,
         details: true,
+        system_unit: false,
+        install_script_url: None,
+    },
+    AddonSpec {
+        id: "tor",
+        display_name: "Tor",
+        description: "Route a network's traffic over Tor instead of relay/direct -- a system Tor daemon, not something this webui installs.",
+        github_repo: "ErikAllanKincaid/tetron",
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        script: false,
+        details: true,
+        system_unit: false,
+        install_script_url: None,
+    },
+    AddonSpec {
+        id: "tetron-veilid",
+        display_name: "tetron-veilid",
+        description: "Companion daemon for tetron's --veilid transport -- a footgun-nodeid-target build of veilid-server, run as its own system service.",
+        github_repo: "ErikAllanKincaid/tetron-veilid",
+        installable: true,
+        binary_name: "tetron-veilid-server",
+        linux_unit: "tetron-veilid",
+        macos_label: "",
+        script: false,
+        details: true,
+        system_unit: true,
+        install_script_url: Some(
+            "https://raw.githubusercontent.com/ErikAllanKincaid/tetron-veilid/main/contrib/install-tetron-veilid.sh",
+        ),
     },
     AddonSpec {
         id: "relay",
@@ -124,6 +179,8 @@ pub const ADDONS: &[AddonSpec] = &[
         macos_label: "",
         script: false,
         details: false,
+        system_unit: false,
+        install_script_url: None,
     },
     AddonSpec {
         id: "testsuite",
@@ -136,6 +193,8 @@ pub const ADDONS: &[AddonSpec] = &[
         macos_label: "",
         script: false,
         details: false,
+        system_unit: false,
+        install_script_url: None,
     },
 ];
 
@@ -151,6 +210,10 @@ pub struct AddonStatus {
     /// Effective upstream URL for addons that proxy a script the popup
     /// points at (Config Backup); `None` for every other addon.
     pub script_url: Option<String>,
+    /// `AddonSpec::install_script_url`, passed through so the frontend's
+    /// popup doesn't have to hardcode a URL that could drift from the
+    /// backend's own bail-out message.
+    pub install_script_url: Option<&'static str>,
 }
 
 fn find(id: &str) -> anyhow::Result<&'static AddonSpec> {
@@ -188,8 +251,14 @@ fn binary_path(spec: &AddonSpec) -> anyhow::Result<PathBuf> {
 /// since this lives in a different binary/repo than the addon itself.
 #[cfg(target_os = "linux")]
 async fn is_active(spec: &AddonSpec) -> bool {
+    let mut args: Vec<&str> = Vec::with_capacity(3);
+    if !spec.system_unit {
+        args.push("--user");
+    }
+    args.push("is-active");
+    args.push(spec.linux_unit);
     Command::new("systemctl")
-        .args(["--user", "is-active", spec.linux_unit])
+        .args(args)
         .output()
         .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
@@ -234,6 +303,7 @@ pub async fn list_status() -> Vec<AddonStatus> {
             installed,
             details: spec.details,
             script_url: (spec.id == "backup").then(backup_script_url),
+            install_script_url: spec.install_script_url,
         });
     }
     out
@@ -280,12 +350,19 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
     if spec.script {
         return install_script(spec).await;
     }
-    anyhow::bail!(
-        "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
-         Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh \
-         | bash -s -- --install-{id}",
-        spec.display_name
-    );
+    match spec.install_script_url {
+        Some(url) => anyhow::bail!(
+            "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
+             Run this in a terminal: curl -fsSL {url} | bash",
+            spec.display_name
+        ),
+        None => anyhow::bail!(
+            "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
+             Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh \
+             | bash -s -- --install-{id}",
+            spec.display_name
+        ),
+    }
 }
 
 /// The Config Backup path: fetch the raw script from the effective
@@ -361,6 +438,18 @@ pub async fn uninstall(id: &str) -> anyhow::Result<String> {
 async fn uninstall_service(spec: &AddonSpec) -> anyhow::Result<String> {
     let dest = binary_path(spec)?;
     anyhow::ensure!(dest.exists(), "{} is not installed", spec.display_name);
+    // tetron-veilid's binary is upstream `veilid-server`, not a
+    // tetron-authored CLI -- it has no `uninstall` subcommand to delegate
+    // to (every other installable addon is tetron's own binary and does).
+    // Its own install script doubles as the uninstaller instead.
+    if spec.system_unit {
+        let url = spec.install_script_url.unwrap_or_default();
+        anyhow::bail!(
+            "{} needs root to uninstall -- this webui can't do that for you. \
+             Run this in a terminal: curl -fsSL {url} | bash -s -- --uninstall --purge",
+            spec.display_name
+        );
+    }
     run_ok(Command::new(&dest).arg("uninstall")).await?;
     match tokio::fs::remove_file(&dest).await {
         Ok(()) => Ok(format!("{} uninstalled.", spec.display_name)),
