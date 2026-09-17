@@ -719,6 +719,22 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
+// --tor / --veilid are mutually exclusive per network (matching tetron's
+// own CLI `conflicts_with`, and enforced again server-side in
+// resolve_transport() since a request could always arrive some other way)
+// -- checking one here unchecks the other in the same form, rather than
+// letting both reach the backend and surface as a rejected submit.
+document.querySelectorAll(".transport-checkbox").forEach((box) => {
+  box.addEventListener("change", () => {
+    if (!box.checked) return;
+    box.closest("form")
+      .querySelectorAll(".transport-checkbox")
+      .forEach((other) => {
+        if (other !== box) other.checked = false;
+      });
+  });
+});
+
 function formToObject(form) {
   const data = {};
   new FormData(form).forEach((value, key) => {
@@ -906,6 +922,42 @@ const ADDON_DETAILS = {
     // instructions, so body() only ever renders a loading placeholder.
     body: () => `<p class="muted">Loading configuration…</p>`,
   },
+  // Tor is `installable: false` (a system package, not something this
+  // webui installs or can detect) -- this popup is pure setup
+  // instructions, same "Details button on a link-only row" pattern as
+  // Relay/Test Suite would use if they had one.
+  tor: {
+    title: "Tor Transport",
+    body: () => `
+      <p class="muted">Requires a system Tor daemon with its control port reachable -- tetron talks to it directly, it does not run its own Tor.</p>
+      <h4>1. Install Tor</h4>
+      ${copyBlock("sudo apt install tor")}
+      <p class="muted">(or your distro's equivalent -- macOS: <code>brew install tor</code>)</p>
+      <h4>2. Enable the control port</h4>
+      <p class="muted">Add to <code>/etc/tor/torrc</code> (macOS: <code>/opt/homebrew/etc/tor/torrc</code>):</p>
+      ${copyBlock("ControlPort 9051\nCookieAuthentication 1")}
+      <h4>3. Restart Tor</h4>
+      ${copyBlock("sudo systemctl restart tor@default")}
+      <p class="muted">(macOS: <code>brew services restart tor</code>)</p>
+      <h4>4. Use it</h4>
+      <p class="muted">Check the <strong>Route over Tor</strong> box on the Create or Join form above. Onion-service bringup takes a bit longer than a normal connect on first use (descriptor publish + settle, usually well under a minute) -- this is expected, not a hang.</p>`,
+  },
+  "tetron-veilid": {
+    title: "tetron-veilid",
+    body: (addon) => {
+      const installCmd = `curl -fsSL ${addon.install_script_url} | bash`;
+      const statusBlock = addon.installed
+        ? `<p class="muted">Installed and running as a system service (<code>systemctl status tetron-veilid</code>). <button class="btn-small btn-secondary" data-action="veilid-uninstall">Show uninstall command</button></p>
+        <div class="copy-block hidden" id="veilid-uninstall-block">${copyBlock(`${installCmd.replace(" | bash", " | bash -s -- --uninstall --purge")}`)}</div>`
+        : `<p class="muted">Not installed yet -- click <strong>Install</strong> on the row above (needs sudo, run at a real terminal), or run this directly:</p>
+        ${copyBlock(installCmd)}`;
+      return `
+        <p class="muted">Companion daemon for tetron's <code>--veilid</code> transport -- a <code>footgun-nodeid-target</code> build of upstream <code>veilid-server</code>, run as its own system service (dedicated system user, listens on <code>127.0.0.1:5959</code> by default). Same relationship tetron's <code>--tor</code> support already has to a local Tor control port.</p>
+        ${statusBlock}
+        <h4>Use it</h4>
+        <p class="muted">Check the <strong>Route over Veilid</strong> box on the Create or Join form above. Identity/attach resolution against this daemon happens in the background and can take up to a few minutes -- no restart needed.</p>`;
+    },
+  },
 };
 
 // Fetches status/modules/allow-list from the Sync Receiver addon's own
@@ -1053,6 +1105,15 @@ detailBody.addEventListener("click", async (e) => {
       detailBody.appendChild(note);
     }
     setTimeout(pollAddons, 1500);
+    return;
+  }
+  // tetron-veilid can't self-uninstall through this webui (no root, and
+  // its binary -- upstream veilid-server -- has no uninstall subcommand
+  // to delegate to) -- this just reveals the copyable command instead of
+  // acting on anything.
+  const veilidUn = e.target.closest("[data-action='veilid-uninstall']");
+  if (veilidUn) {
+    document.getElementById("veilid-uninstall-block")?.classList.remove("hidden");
     return;
   }
   const modRemove = e.target.closest("[data-action='sr-module-remove']");
@@ -1208,14 +1269,20 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
   }
 
   // "Configure" button (an already-installed addon with a live config
-  // popup, e.g. Sync Receiver): open the popup and immediately kick off
-  // the real fetch -- unlike "backup"/"details" above, body() alone is
-  // just a loading placeholder here.
+  // popup, e.g. Sync Receiver, tetron-veilid): open the popup, passing
+  // the addon's current status same as "details" above -- Sync Receiver's
+  // body() ignores it (real content comes from renderSyncReceiverPanel()
+  // below instead), but tetron-veilid's body() needs it (install_script_url,
+  // installed) to render at all. Calling body() with no argument here
+  // used to throw inside tetron-veilid's body() (reading `.installed` off
+  // `undefined`), which silently no-op'd the whole click -- found live
+  // 2026-09-16.
   if (action === "configure") {
     const detail = ADDON_DETAILS[addon];
     if (!detail) return;
+    const status = lastAddons.find((a) => a.id === addon) || {};
     detailTitle.textContent = detail.title;
-    detailBody.innerHTML = detail.body();
+    detailBody.innerHTML = detail.body(status);
     detailModal.classList.remove("hidden");
     if (addon === "sync-receiver") renderSyncReceiverPanel();
     return;
