@@ -8,6 +8,7 @@
 
 mod addons;
 mod api;
+mod board_discovery;
 mod ipc_client;
 mod service;
 mod sync_receiver;
@@ -221,6 +222,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/vendor/idiomorph.js", get(serve_idiomorph_js))
         // Phase 1: read-only status
         .route("/api/status", get(api::get_status))
+        // Network-wide message-board discovery (top-of-section link)
+        .route("/api/boards", get(api::boards_list))
         // Phase 2: low-stakes mutations
         .route("/api/networks", post(api::create_network))
         .route("/api/networks/join", post(api::join_network))

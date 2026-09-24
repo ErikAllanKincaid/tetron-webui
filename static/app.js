@@ -218,6 +218,56 @@ const toggleBoundDetails = new WeakSet();
 let wasNetworksEmpty = true;
 let lastStatus = null;
 
+// Discovered message boards per network name (from /api/boards, polled on a
+// slower cadence than status -- see BOARD_POLL_INTERVAL_MS). Read by
+// renderNetworkRow to place a link at the top of each network's section.
+let boardsByNetwork = {};
+
+// Minimal HTML-escape for values interpolated into board links (hostnames
+// come from the roster). innerHTML is used throughout this file for
+// daemon-sourced data; this keeps the board fields from breaking markup.
+function escHtml(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+// The board link(s) for a network, rendered at the top of its body. Empty
+// string when no board was discovered (the section then shows nothing).
+// Admin-hosted boards render normally; member-hosted ones are dimmed (the
+// coordinator soft-gate: they run and are reachable, just not the canonical
+// board), matching the reviewed mockup.
+function renderBoardLinks(networkName) {
+  const boards = boardsByNetwork[networkName] || [];
+  return boards
+    .map((b) => {
+      const cls = b.admin ? "board-link" : "board-link member";
+      const badgeCls = b.admin ? "board-badge" : "board-badge member";
+      const badge = b.admin ? "admin-hosted" : "member-hosted";
+      return `<a class="${cls}" href="${escHtml(b.url)}" target="_blank" rel="noopener">
+        <span class="board-ico">&#128172;</span>
+        <span class="board-text">
+          <span class="board-title">Message board</span>
+          <span class="board-host">hosted on <span class="mono">${escHtml(b.host)}</span> &middot; <span class="mono">${escHtml(b.ip)}</span></span>
+        </span>
+        <span class="${badgeCls}">${badge}</span>
+        <span class="board-open">Open &#8599;</span>
+      </a>`;
+    })
+    .join("");
+}
+
+async function pollBoards() {
+  try {
+    const r = await fetch("/api/boards", { cache: "no-store" });
+    if (!r.ok) return;
+    boardsByNetwork = await r.json();
+    // Reflect a fresh discovery immediately rather than waiting for the next
+    // status tick to redraw the network sections.
+    if (lastStatus) render(lastStatus);
+  } catch (_) {
+    // Transient -- keep the last known boards and try again next tick.
+  }
+}
+
 function setHeader(status) {
   const dot = document.getElementById("status-dot");
   const text = document.getElementById("status-text");
@@ -420,6 +470,7 @@ function renderNetworkRow(net, myShortId) {
       ${standbyBadge}
     </div>
     <div class="network-body">
+      ${renderBoardLinks(net.network)}
       <div class="network-meta mono">id ${net.short_id || "?"}${net.short_id ? copyBtn(net.short_id) : ""} · host ${net.my_hostname || net.my_ip} · interface ${net.tun_name || "?"} · ${net.my_ip}${copyBtn(net.my_ip)}${net.my_ipv6 ? ` · ${net.my_ipv6}${copyBtn(net.my_ipv6)}` : ""}</div>
       ${peerTable}
       ${renderNukeBanner(net)}
@@ -1341,4 +1392,8 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
 
 poll();
 pollAddons();
+pollBoards();
 setInterval(poll, POLL_INTERVAL_MS);
+// Board discovery probes the whole roster server-side, so poll it far less
+// often than status; the backend also caches for ~60s.
+setInterval(pollBoards, 60000);
