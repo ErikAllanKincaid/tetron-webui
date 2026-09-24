@@ -958,6 +958,31 @@ const ADDON_DETAILS = {
         <p class="muted">Check the <strong>Route over Veilid</strong> box on the Create or Join form above. Identity/attach resolution against this daemon happens in the background and can take up to a few minutes -- no restart needed.</p>`;
     },
   },
+  // Message Board is installable + details:true (no live config UI), so the
+  // row's post-install button is "Configure" and opens this instructions
+  // popup -- exact same pattern as tetron-veilid above. The board is a
+  // browser UI reached over the mesh; this popup says how to install it and
+  // where to open it. (A direct link is the job of the network-wide
+  // discovery probe, tracked separately -- not shipped here yet.)
+  messageboard: {
+    title: "Message Board",
+    body: (addon) => {
+      const installCmd =
+        "curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-messageboard";
+      const statusBlock = addon.installed
+        ? `<p class="muted">Installed and running as a per-user service (<code>systemctl --user status tetron-messageboard</code>). Use the <strong>Uninstall</strong> button on the row above to remove it.</p>`
+        : `<p class="muted">Not installed yet -- click <strong>Install</strong> on the row above. It needs sudo at a real terminal (the binary goes in root-owned <code>/usr/local/bin</code>), so the button hands you this command to run:</p>
+        ${copyBlock(installCmd)}`;
+      return `
+        <p class="muted">A message board shared with everyone on this tetron network -- text and images, read and post from a browser. It binds to this host's mesh IP only, so mesh membership itself is the access control: no login, no accounts. Anyone on the network can delete any post.</p>
+        ${statusBlock}
+        <h4>Open it</h4>
+        <p class="muted">Once installed, open it in a browser at this host's mesh IP on the board's port (default <code>28088</code>): <code>http://&lt;this-host-mesh-ip&gt;:28088/</code>. This host's mesh IP is the <code>my_ip</code> shown for it in the status above (or <code>tetron status</code>). Override the port with <code>TETRON_MESSAGEBOARD_PORT</code>.</p>
+        <h4>Multiple networks</h4>
+        <p class="muted">On a node in more than one network, pin which one the board serves at install time: <code>tetron-messageboard install --network &lt;name&gt;</code> (or <code>TETRON_MESSAGEBOARD_NETWORK</code>). One board instance serves one network.</p>
+        <p class="muted"><strong>Everything posted is visible to the whole mesh</strong>, including images (which can carry location/EXIF data).</p>`;
+    },
+  },
 };
 
 // Fetches status/modules/allow-list from the Sync Receiver addon's own
