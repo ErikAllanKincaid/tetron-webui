@@ -154,6 +154,14 @@ pub async fn get_status() -> Json<serde_json::Value> {
     }))
 }
 
+/// `GET /api/boards`. Network-wide discovery of running tetron-messageboard
+/// instances, keyed by network name (only networks with a board appear).
+/// Served from a ~60s cache so the browser can poll it without triggering a
+/// roster probe every time. See `board_discovery`.
+pub async fn boards_list() -> Json<crate::board_discovery::BoardsByNetwork> {
+    Json(crate::board_discovery::get_boards().await)
+}
+
 // ---------------------------------------------------------------------
 // Phase 2 -- low-stakes mutations (create / join / leave / up / down)
 // ---------------------------------------------------------------------
