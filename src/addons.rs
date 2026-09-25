@@ -145,8 +145,12 @@ pub const ADDONS: &[AddonSpec] = &[
         github_repo: "ErikAllanKincaid/tetron-messageboard",
         installable: true,
         binary_name: "tetron-messageboard",
-        linux_unit: "tetron-messageboard",
-        macos_label: "com.tetron.messageboard",
+        // No single unit to poll: messageboard registers a templated unit per
+        // network. `installed` is computed from binary presence (see
+        // list_status), and the board manager panel reports per-network state
+        // via /api/messageboard/*, so is_active() is never called for it.
+        linux_unit: "",
+        macos_label: "",
         script: false,
         details: true,
         system_unit: false,
@@ -305,6 +309,13 @@ pub async fn list_status() -> Vec<AddonStatus> {
         // query about a service that was never registered).
         let installed = if spec.script {
             binary_path(spec).map(|p| p.exists()).unwrap_or(false)
+        } else if spec.id == "messageboard" {
+            // Multi-board: the addon has no single unit to poll (it registers
+            // a templated unit per network), so "installed" here means the
+            // binary is present. The board manager panel (its own
+            // /api/messageboard/* routes) reports which networks have a live
+            // board.
+            crate::messageboard::binary_present()
         } else {
             spec.installable && is_active(spec).await
         };

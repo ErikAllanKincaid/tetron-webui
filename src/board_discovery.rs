@@ -127,7 +127,9 @@ async fn discover() -> BoardsByNetwork {
 
 /// Probe one member's `/health`. Returns a `Board` only if it answers with a
 /// tetron-messageboard health payload whose `network` matches the network we
-/// are probing (a node in several networks hosts a board for exactly one).
+/// are probing. A node in several networks can host a board per network; each
+/// binds that network's own mesh IP, so probing each network's IPs at the
+/// default port surfaces them independently.
 async fn probe_one(ip: String, port: u16, host: String, network: String) -> Option<Board> {
     let url = format!("http://{ip}:{port}/health");
     let out = tokio::process::Command::new("curl")

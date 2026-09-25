@@ -765,3 +765,48 @@ pub async fn sync_receiver_set_port(Json(req): Json<PortReq>) -> Json<ActionResu
         Err(e) => ActionResult::err(e.to_string()),
     }
 }
+
+// ---------------------------------------------------------------------
+// Message Board addon: start/stop/list boards per network, shelled through
+// `messageboard.rs` to the installed binary's own CLI. One board per network;
+// a multi-network node runs several at once. Same reachability-over-hard-
+// failure shape as the sync-receiver handlers above.
+// ---------------------------------------------------------------------
+
+pub async fn messageboard_status() -> Response {
+    if !crate::messageboard::binary_present() {
+        return Json(serde_json::json!({"binary_present": false, "boards": []})).into_response();
+    }
+    match crate::messageboard::list().await {
+        Ok(boards) => {
+            Json(serde_json::json!({"binary_present": true, "boards": boards})).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, ActionResult::err(e.to_string())).into_response(),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct BoardReq {
+    network: String,
+}
+
+pub async fn messageboard_start(Json(req): Json<BoardReq>) -> Json<ActionResult> {
+    match crate::messageboard::start(&req.network).await {
+        Ok(()) => ActionResult::ok(format!("Board started for network '{}'.", req.network)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn messageboard_stop(Json(req): Json<BoardReq>) -> Json<ActionResult> {
+    match crate::messageboard::stop(&req.network).await {
+        Ok(()) => ActionResult::ok(format!("Board stopped for network '{}'.", req.network)),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
+
+pub async fn messageboard_restart_all() -> Json<ActionResult> {
+    match crate::messageboard::restart_all().await {
+        Ok(()) => ActionResult::ok("Restarted all boards.".to_string()),
+        Err(e) => ActionResult::err(e.to_string()),
+    }
+}
