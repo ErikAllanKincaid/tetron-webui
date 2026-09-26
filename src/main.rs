@@ -10,6 +10,7 @@ mod addons;
 mod api;
 mod board_discovery;
 mod ipc_client;
+mod messageboard;
 mod service;
 mod sync_receiver;
 
@@ -268,7 +269,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/sync-receiver/allow/{ip}", delete(api::sync_receiver_allow_remove))
         .route("/api/sync-receiver/enable", post(api::sync_receiver_enable))
         .route("/api/sync-receiver/disable", post(api::sync_receiver_disable))
-        .route("/api/sync-receiver/port", post(api::sync_receiver_set_port));
+        .route("/api/sync-receiver/port", post(api::sync_receiver_set_port))
+        .route("/api/messageboard/status", get(api::messageboard_status))
+        .route("/api/messageboard/start", post(api::messageboard_start))
+        .route("/api/messageboard/stop", post(api::messageboard_stop))
+        .route("/api/messageboard/restart-all", post(api::messageboard_restart_all));
 
     let port = resolve_port();
     let addr = format!("127.0.0.1:{port}");

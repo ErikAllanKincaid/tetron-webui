@@ -900,6 +900,31 @@ function renderAddonRow(addon) {
     </div>`;
   }
 
+  // Message Board: like Sync Receiver it has a live config panel, but its
+  // "installed" flag means only that the binary is present (it registers a
+  // templated unit per network, not one pollable unit). So the row shows a
+  // sudo install one-liner until the binary exists, then a "Manage boards"
+  // button that opens the board manager -- no plain Uninstall toggle, since
+  // boards are started/stopped per network inside the panel.
+  if (addon.id === "messageboard") {
+    const statusTxt = addon.installed ? "installed" : "not installed";
+    const actionBtn = addon.installed
+      ? `<button class="btn-small btn-secondary" data-action="configure" data-addon="messageboard">Manage boards</button>`
+      : `<button class="btn-small" data-action="install" data-addon="messageboard">Install</button>`;
+    return `<div class="addon-row" data-addon="messageboard">
+      <div class="addon-info">
+        <span class="addon-name">${addon.display_name}</span>
+        <span class="addon-status ${addon.installed ? "installed" : "not-installed"}">${statusTxt}</span>
+        <p class="muted addon-description">${addon.description}</p>
+        ${repoLine}
+      </div>
+      <div class="addon-actions">
+        ${actionBtn}
+      </div>
+      <p class="form-result"></p>
+    </div>`;
+  }
+
   // Every other installable addon: the normal Install/Uninstall toggle
   // (reference look: Systray's outline "Uninstall" button). An addon that
   // also has a live config popup (`details: true` but not a script, e.g.
@@ -1009,30 +1034,14 @@ const ADDON_DETAILS = {
         <p class="muted">Check the <strong>Route over Veilid</strong> box on the Create or Join form above. Identity/attach resolution against this daemon happens in the background and can take up to a few minutes -- no restart needed.</p>`;
     },
   },
-  // Message Board is installable + details:true (no live config UI), so the
-  // row's post-install button is "Configure" and opens this instructions
-  // popup -- exact same pattern as tetron-veilid above. The board is a
-  // browser UI reached over the mesh; this popup says how to install it and
-  // where to open it. (A direct link is the job of the network-wide
-  // discovery probe, tracked separately -- not shipped here yet.)
+  // Message Board is a live board manager: one board per tetron network, and
+  // a multi-network node can run several at once. body() only renders a
+  // loading placeholder; renderMessageBoardPanel() fills in the real content
+  // (boards running + an "add board" picker) from /api/messageboard/* right
+  // after the modal opens -- same pattern as Sync Receiver above.
   messageboard: {
     title: "Message Board",
-    body: (addon) => {
-      const installCmd =
-        "curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-messageboard";
-      const statusBlock = addon.installed
-        ? `<p class="muted">Installed and running as a per-user service (<code>systemctl --user status tetron-messageboard</code>). Use the <strong>Uninstall</strong> button on the row above to remove it.</p>`
-        : `<p class="muted">Not installed yet -- click <strong>Install</strong> on the row above. It needs sudo at a real terminal (the binary goes in root-owned <code>/usr/local/bin</code>), so the button hands you this command to run:</p>
-        ${copyBlock(installCmd)}`;
-      return `
-        <p class="muted">A message board shared with everyone on this tetron network -- text and images, read and post from a browser. It binds to this host's mesh IP only, so mesh membership itself is the access control: no login, no accounts. Anyone on the network can delete any post.</p>
-        ${statusBlock}
-        <h4>Open it</h4>
-        <p class="muted">Once installed, open it in a browser at this host's mesh IP on the board's port (default <code>28088</code>): <code>http://&lt;this-host-mesh-ip&gt;:28088/</code>. This host's mesh IP is the <code>my_ip</code> shown for it in the status above (or <code>tetron status</code>). Override the port with <code>TETRON_MESSAGEBOARD_PORT</code>.</p>
-        <h4>Multiple networks</h4>
-        <p class="muted">On a node in more than one network, pin which one the board serves at install time: <code>tetron-messageboard install --network &lt;name&gt;</code> (or <code>TETRON_MESSAGEBOARD_NETWORK</code>). One board instance serves one network.</p>
-        <p class="muted"><strong>Everything posted is visible to the whole mesh</strong>, including images (which can carry location/EXIF data).</p>`;
-    },
+    body: () => `<p class="muted">Loading boards…</p>`,
   },
 };
 
@@ -1156,6 +1165,102 @@ function showSyncReceiverError(message) {
   }
 }
 
+// -----------------------------------------------------------------------
+// Message Board panel: one board per tetron network, several at once on a
+// multi-network node. Fetches the installed binary's own view of which
+// boards exist (/api/messageboard/status) and lets the user start a board on
+// any network that lacks one, or stop an existing one -- both per-user
+// systemd/launchd operations the binary performs itself, no root. The URL to
+// open each board comes from the network's own mesh IP in the last
+// /api/status poll (lastStatus) plus the board's port.
+// -----------------------------------------------------------------------
+async function renderMessageBoardPanel() {
+  detailBody.innerHTML = `<p class="muted">Loading boards…</p>`;
+  try {
+    const status = await getJson("/api/messageboard/status");
+    if (status.ok === false) throw new Error(status.error);
+    if (status.binary_present === false) {
+      detailBody.innerHTML = `<p class="muted">The <code>tetron-messageboard</code> binary is not installed on this host.</p>`;
+      return;
+    }
+    detailBody.innerHTML = messageBoardPanelHtml(status);
+  } catch (e) {
+    detailBody.innerHTML = `<p class="muted">Could not load boards: ${String(e.message || e)}</p>`;
+  }
+}
+
+// URL to open a board: the hosting network's own mesh IP (from lastStatus)
+// plus the board's port. Null when the roster has not loaded or the board is
+// not one of this node's networks.
+function mbBoardUrl(network, port) {
+  const s = lastStatus;
+  const net = s && Array.isArray(s.networks) ? s.networks.find((n) => n.network === network) : null;
+  return net && net.my_ip ? `http://${net.my_ip}:${port}/` : null;
+}
+
+// This node's networks that do not already have a board (case-insensitive).
+function mbNetworksWithoutBoard(boards) {
+  const s = lastStatus;
+  if (!s || !Array.isArray(s.networks)) return [];
+  const have = new Set(boards.map((b) => b.network.toLowerCase()));
+  return s.networks.map((n) => n.network).filter((name) => !have.has(name.toLowerCase()));
+}
+
+function messageBoardPanelHtml(status) {
+  const boards = status.boards || [];
+  const boardRows = boards.length
+    ? boards.map((b) => {
+        const url = mbBoardUrl(b.network, b.port);
+        const open = url
+          ? `<a class="addon-link" href="${url}" target="_blank" rel="noopener">${url}</a>`
+          : `<span class="muted">port ${b.port}</span>`;
+        const legacy = b.legacy ? " <span class=\"muted\">(legacy)</span>" : "";
+        return `<tr><td>${b.network}${legacy}</td><td>${open}</td><td>${b.active ? "running" : "stopped"}</td><td><button class="btn-small btn-secondary" data-action="mb-stop" data-network="${b.network}">Stop</button></td></tr>`;
+      }).join("")
+    : `<tr><td colspan="4" class="muted">No boards running yet.</td></tr>`;
+
+  const avail = mbNetworksWithoutBoard(boards);
+  const hasNetworks = !!(lastStatus && Array.isArray(lastStatus.networks) && lastStatus.networks.length);
+  const addForm = avail.length
+    ? `<form class="tab-panel" data-action="mb-start">
+         <select name="network" required>
+           <option value="" disabled selected>Choose a network…</option>
+           ${avail.map((n) => `<option value="${n}">${n}</option>`).join("")}
+         </select>
+         <button type="submit" class="btn-small">Start board</button>
+       </form>`
+    : hasNetworks
+      ? `<p class="muted">Every network on this node already has a board.</p>`
+      : `<p class="muted">No tetron networks on this node yet -- create or join one first.</p>`;
+
+  const restartAll = boards.length
+    ? `<div class="addon-actions"><button class="btn-small btn-secondary" data-action="mb-restart-all">Restart all boards</button></div>
+       <p class="muted">Run after upgrading the binary so every board picks up the new version.</p>`
+    : "";
+
+  return `
+    <p class="muted">A message board shared with everyone on a tetron network -- text and images, read and post from a browser. Each board binds its network's own mesh IP only, so mesh membership itself is the access control: no login, no accounts. Anyone on the network can delete any post.</p>
+    <h4>Boards on this node</h4>
+    <table class="peer-table"><thead><tr><th>Network</th><th>Open</th><th>State</th><th></th></tr></thead><tbody>${boardRows}</tbody></table>
+    ${restartAll}
+    <h4>Add a board</h4>
+    <p class="muted">Start a board for a network this node belongs to. One board per network; run several at once (each binds that network's mesh IP, so they share port <code>28088</code>).</p>
+    ${addForm}
+    <p class="form-result"></p>
+    <h4>Remove the binary</h4>
+    <p class="muted">Stopping a board keeps its messages on disk and leaves the <code>tetron-messageboard</code> binary in place. To remove the binary entirely (needs sudo at a real terminal):</p>
+    ${copyBlock("sudo rm /usr/local/bin/tetron-messageboard")}
+    <p class="muted"><strong>Everything posted is visible to the whole mesh</strong>, including images (which can carry location/EXIF data).</p>`;
+}
+
+function showMessageBoardError(message) {
+  const out = detailBody.querySelector(".form-result");
+  if (out) {
+    out.textContent = message;
+    out.className = "form-result error";
+  }
+}
+
 // A copyable command block for the instructions popup. The copy handler is
 // the delegated listener on detailBody below (the #networks delegate can't
 // see inside the modal).
@@ -1229,6 +1334,24 @@ detailBody.addEventListener("click", async (e) => {
     return;
   }
 
+  const mbStop = e.target.closest("[data-action='mb-stop']");
+  if (mbStop) {
+    mbStop.disabled = true;
+    const result = await postJson("/api/messageboard/stop", { network: mbStop.dataset.network });
+    if (result.ok) renderMessageBoardPanel();
+    else { mbStop.disabled = false; showMessageBoardError(result.error); }
+    return;
+  }
+
+  const mbRestart = e.target.closest("[data-action='mb-restart-all']");
+  if (mbRestart) {
+    mbRestart.disabled = true;
+    const result = await postJson("/api/messageboard/restart-all", {});
+    if (result.ok) renderMessageBoardPanel();
+    else { mbRestart.disabled = false; showMessageBoardError(result.error); }
+    return;
+  }
+
   const el = e.target.closest("[data-action='copy']");
   if (!el) return;
   navigator.clipboard.writeText(el.dataset.copy).then(() => {
@@ -1262,6 +1385,14 @@ detailBody.addEventListener("submit", async (e) => {
     result = await postJson("/api/sync-receiver/dir", { path: data.path.trim() });
   } else if (action === "sr-set-port") {
     result = await postJson("/api/sync-receiver/port", { port: Number(data.port) });
+  } else if (action === "mb-start") {
+    // Starting a board resolves the network against the daemon and waits for
+    // it to come up, so this can take a few seconds.
+    submitBtn.textContent = "Starting…";
+    const result2 = await postJson("/api/messageboard/start", { network: data.network });
+    if (result2.ok) renderMessageBoardPanel();
+    else { submitBtn.disabled = false; submitBtn.textContent = "Start board"; showMessageBoardError(result2.error); }
+    return;
   } else {
     submitBtn.disabled = false;
     return;
@@ -1361,6 +1492,7 @@ document.getElementById("addons-list").addEventListener("click", async (e) => {
     detailBody.innerHTML = detail.body(status);
     detailModal.classList.remove("hidden");
     if (addon === "sync-receiver") renderSyncReceiverPanel();
+    if (addon === "messageboard") renderMessageBoardPanel();
     return;
   }
 
