@@ -157,6 +157,45 @@ pub const ADDONS: &[AddonSpec] = &[
         install_script_url: None,
     },
     AddonSpec {
+        id: "tui",
+        display_name: "Terminal UI",
+        description: "Interactive full-screen terminal dashboard for tetron -- networks, peers, live status, and admin actions in the shell. Ships with the install suite by default; run `tetron-tui` in a terminal.",
+        github_repo: "ErikAllanKincaid/tetron-tui",
+        // Link-only (installable:false): tetron-tui is a root-owned
+        // /usr/local/bin binary with no per-user service and no
+        // install/uninstall subcommand (place-only in the suite), and a TUI is
+        // a foreground terminal program this browser-based webui cannot launch
+        // anyway. The row is name/description/link plus a Details popup with
+        // the run/update one-liners -- same treatment as the Tor row, not an
+        // Install toggle.
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        script: false,
+        details: true,
+        system_unit: false,
+        install_script_url: None,
+    },
+    AddonSpec {
+        id: "hosts",
+        display_name: "Hosts Sync",
+        description: "Syncs tetron peer hostnames into /etc/hosts as <hostname>.<network>, so peers resolve by name with no DNS server. A root-run systemd timer -- not a port, not a daemon.",
+        github_repo: "ErikAllanKincaid/tetron-hosts",
+        // Link-only (installable:false): every tetron-hosts action needs root
+        // (it rewrites /etc/hosts and installs a system timer), so this
+        // unprivileged webui cannot drive it -- the Details popup carries the
+        // sudo commands, same reasoning as tetron-veilid's own row.
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        script: false,
+        details: true,
+        system_unit: false,
+        install_script_url: None,
+    },
+    AddonSpec {
         id: "tor",
         display_name: "Tor",
         description: "Route a network's traffic over Tor instead of relay/direct -- a system Tor daemon, not something this webui installs.",

@@ -1034,6 +1034,29 @@ const ADDON_DETAILS = {
         <p class="muted">Check the <strong>Route over Veilid</strong> box on the Create or Join form above. Identity/attach resolution against this daemon happens in the background and can take up to a few minutes -- no restart needed.</p>`;
     },
   },
+  tui: {
+    title: "Terminal UI",
+    body: () => `
+      <p class="muted">A full-screen terminal dashboard for tetron — networks, peers, live connection status and admin actions, in the shell. It ships with the install suite <strong>by default</strong>, so you most likely already have it; just run it in a terminal.</p>
+      <h4>Run it</h4>
+      ${copyBlock("tetron-tui")}
+      <h4>Install or update</h4>
+      <p class="muted">Part of the tetron install suite (needs sudo, run at a real terminal):</p>
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-tui")}
+      <p class="muted">A browser GUI cannot launch a terminal program, so this webui does not start or manage it — it is listed here so you know it exists and how to reach it.</p>`,
+  },
+  hosts: {
+    title: "Hosts Sync",
+    body: () => `
+      <p class="muted">Writes your tetron peers' hostnames into <code>/etc/hosts</code> as <code>&lt;hostname&gt;.&lt;network&gt;</code> (e.g. <code>node1.my-net</code>), so peers resolve by name with no DNS server. Reads <code>tetron status</code> over the daemon's existing IPC socket — not a DNS server, opens no port.</p>
+      <h4>Install (needs sudo, run at a real terminal)</h4>
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-hosts")}
+      <p class="muted">Nothing is synced until you opt a network in:</p>
+      ${copyBlock("sudo tetron-hosts config add-network <network>\nsudo tetron-hosts sync")}
+      <h4>Manage</h4>
+      ${copyBlock("sudo tetron-hosts config list\nsudo tetron-hosts uninstall   # removes the timer only; /etc/hosts entries and config stay")}
+      <p class="muted">Every action needs root (it writes a system-wide file), so this unprivileged webui does not manage it — listed here so you know it exists.</p>`,
+  },
   // Message Board is a live board manager: one board per tetron network, and
   // a multi-network node can run several at once. body() only renders a
   // loading placeholder; renderMessageBoardPanel() fills in the real content
