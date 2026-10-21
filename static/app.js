@@ -1045,6 +1045,22 @@ const ADDON_DETAILS = {
       ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-tui")}
       <p class="muted">A browser GUI cannot launch a terminal program, so this webui does not start or manage it — it is listed here so you know it exists and how to reach it.</p>`,
   },
+  wm: {
+    title: "Terminal Desktop",
+    body: () => `
+      <p class="muted">tetron-wm is a desktop for your terminal: floating windows, a taskbar, a launcher, an app store and a mouse, all drawn as text inside the terminal you already have. Your apps keep running when you close the terminal or drop an ssh connection. It has a menubar tray for tetron (peer count, connection quality, and a per-network on/off) when tetron is installed.</p>
+      <h4>Install</h4>
+      <p class="muted">Prebuilt binary for Linux and macOS (installs to <code>/usr/local/bin</code>, needs sudo, run at a real terminal):</p>
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron-wm/main/contrib/install-tetron-wm-suite.sh | bash")}
+      <p class="muted">Into your home instead, no sudo:</p>
+      ${copyBlock("TETRON_WM_BIN_DIR=\"$HOME/.local/bin\" curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron-wm/main/install.sh | sh")}
+      <h4>Run it</h4>
+      ${copyBlock("tetron-wm")}
+      <p class="muted"><code>Ctrl+Space</code> is the leader key: then <code>l</code> opens the launcher, <code>S</code> the app store, <code>?</code> all shortcuts, and <code>q</code> detaches.</p>
+      <h4>Sessions</h4>
+      ${copyBlock("tetron-wm ls        # list sessions\ntetron-wm attach    # come back to a running session\ntetron-wm kill      # stop everything and close all apps")}
+      <p class="muted">A browser GUI cannot start a terminal program, so this webui does not run or manage it — it is listed here so you know it exists and how to reach it.</p>`,
+  },
   hosts: {
     title: "Hosts Sync",
     body: () => `

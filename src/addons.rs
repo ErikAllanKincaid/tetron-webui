@@ -196,6 +196,26 @@ pub const ADDONS: &[AddonSpec] = &[
         install_script_url: None,
     },
     AddonSpec {
+        id: "wm",
+        display_name: "Terminal Desktop",
+        description: "tetron-wm: a desktop for your terminal -- floating windows, a taskbar, a launcher, an app store and a mouse, all drawn as text. Sessions detach and reattach like tmux, and its menubar tray shows tetron status with a per-network on/off. Run `tetron-wm` in a terminal.",
+        github_repo: "ErikAllanKincaid/tetron-wm",
+        // Link-only (installable:false): tetron-wm is a foreground terminal
+        // program (it draws into the terminal it is started from) with its own
+        // installer and its own session server, not a service this
+        // browser-based webui can start or stop. Same treatment as the
+        // tetron-tui row: name/description/link plus a Details popup with the
+        // install/run/session one-liners, no Install toggle.
+        installable: false,
+        binary_name: "",
+        linux_unit: "",
+        macos_label: "",
+        script: false,
+        details: true,
+        system_unit: false,
+        install_script_url: None,
+    },
+    AddonSpec {
         id: "tor",
         display_name: "Tor",
         description: "Route a network's traffic over Tor instead of relay/direct -- a system Tor daemon, not something this webui installs.",
@@ -522,5 +542,49 @@ async fn uninstall_service(spec: &AddonSpec) -> anyhow::Result<String> {
             spec.display_name,
             dest.display()
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const APP_JS: &str = include_str!("../static/app.js");
+
+    #[test]
+    fn addon_ids_are_unique() {
+        let mut ids: Vec<&str> = ADDONS.iter().map(|a| a.id).collect();
+        ids.sort_unstable();
+        let n = ids.len();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "duplicate addon id in ADDONS");
+    }
+
+    #[test]
+    fn every_details_row_has_a_popup_in_the_ui() {
+        // A row with `details: true` opens a popup keyed by its id in
+        // static/app.js; a missing key is a dead Details button.
+        for a in ADDONS.iter().filter(|a| a.details) {
+            let plain = format!("\n  {}: {{", a.id);
+            let quoted = format!("\n  \"{}\": {{", a.id);
+            assert!(
+                APP_JS.contains(&plain) || APP_JS.contains(&quoted),
+                "addon '{}' has details: true but static/app.js has no popup for it",
+                a.id
+            );
+        }
+    }
+
+    #[test]
+    fn tetron_wm_is_listed_as_a_link_only_row_with_details() {
+        let wm = ADDONS
+            .iter()
+            .find(|a| a.id == "wm")
+            .expect("tetron-wm row missing from ADDONS");
+        assert_eq!(wm.github_repo, "ErikAllanKincaid/tetron-wm");
+        // A terminal desktop the browser cannot launch: no Install toggle.
+        assert!(!wm.installable);
+        assert!(wm.details);
+        assert!(wm.install_script_url.is_none());
     }
 }
