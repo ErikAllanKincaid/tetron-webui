@@ -1,0 +1,31 @@
+# Package description for mkdeb (https://github.com/ErikAllanKincaid/tetron-packaging).
+# Built in release CI by the build-deb action. Paths are relative to this file.
+#
+# Only the binary: `tetron-webui install`, run as the user, registers the service
+# with the binary's own path, as it does for a downloaded binary.
+name = "tetron-webui"
+description = "Browser dashboard and admin console for the tetron mesh VPN"
+long_description = """
+Web dashboard for the tetron daemon: networks, peers, invites and admin
+actions in a browser, served on localhost. Talks to the local tetron daemon
+over its Unix socket, so the tetron daemon must be installed and running on
+the same host.
+
+Run `tetron-webui install` as your user to start it as a systemd user
+service (it listens on port 7870 by default)."""
+section = "net"
+license = "MPL-2.0"
+homepage = "https://github.com/ErikAllanKincaid/tetron-webui"
+# tetron-webui X.Y.z targets tetron core X.Y, so recommend that minor only.
+recommends = ["tetron (>= {minor}), tetron (<< {next_minor})"]
+smoke = "tetron-webui --version"
+
+[[files]]
+src = "binary"
+dst = "usr/bin/tetron-webui"
+mode = "0755"
+
+[[files]]
+src = "../README.md"
+dst = "usr/share/doc/tetron-webui/README.md"
+mode = "0644"

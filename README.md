@@ -19,7 +19,16 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ## Running it
 
-**Primary path: download a pre-built binary.**
+**Debian and Ubuntu (amd64, arm64):** download `tetron-webui_<version>_<arch>.deb` from the [releases page](https://github.com/ErikAllanKincaid/tetron-webui/releases/latest) and install it with apt, which puts the binary in `/usr/bin` and lets apt upgrade and remove it; then register the service as your user:
+
+```bash
+sudo apt install ./tetron-webui_<version>_amd64.deb
+tetron-webui install
+```
+
+The [tetron suite installer](https://github.com/ErikAllanKincaid/tetron) uses the `.deb` on Debian and Ubuntu automatically. To remove it: `tetron-webui uninstall`, then `sudo apt remove tetron-webui`.
+
+**Other systems: download a pre-built binary.**
 
 ```bash
 # First install tetron daemon.
