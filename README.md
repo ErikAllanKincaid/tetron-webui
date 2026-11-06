@@ -1,6 +1,6 @@
 # tetron-webui
 
-A browser dashboard and admin console for [tetron](https://github.com/ErikAllanKincaid/tetron), a P2P mesh VPN. Talks to the existing `tetron` daemon over its Unix-socket IPC protocol — no daemon changes required.
+A browser dashboard and admin console for [tetron](https://github.com/tetronos/tetron), a P2P mesh VPN. Talks to the existing `tetron` daemon over its Unix-socket IPC protocol — no daemon changes required.
 
 **Optional and separate from tetron on purpose.** tetron itself follows the Unix "do one thing well" philosophy and stays CLI-only by default; `tetron-webui` is a genuinely separate, opt-in product for anyone who wants a browser interface, not a bundled or default-installed component. Nothing about tetron's own behavior changes whether this exists or not.
 
@@ -19,27 +19,27 @@ A browser dashboard and admin console for [tetron](https://github.com/ErikAllanK
 
 ## Running it
 
-**Debian and Ubuntu (amd64, arm64):** download `tetron-webui_<version>_<arch>.deb` from the [releases page](https://github.com/ErikAllanKincaid/tetron-webui/releases/latest) and install it with apt, which puts the binary in `/usr/bin` and lets apt upgrade and remove it; then register the service as your user:
+**Debian and Ubuntu (amd64, arm64):** download `tetron-webui_<version>_<arch>.deb` from the [releases page](https://github.com/tetronos/tetron-webui/releases/latest) and install it with apt, which puts the binary in `/usr/bin` and lets apt upgrade and remove it; then register the service as your user:
 
 ```bash
 sudo apt install ./tetron-webui_<version>_amd64.deb
 tetron-webui install
 ```
 
-The [tetron suite installer](https://github.com/ErikAllanKincaid/tetron) uses the `.deb` on Debian and Ubuntu automatically. To remove it: `tetron-webui uninstall`, then `sudo apt remove tetron-webui`.
+The [tetron suite installer](https://github.com/tetronos/tetron) uses the `.deb` on Debian and Ubuntu automatically. To remove it: `tetron-webui uninstall`, then `sudo apt remove tetron-webui`.
 
 **Other systems: download a pre-built binary.**
 
 ```bash
 # First install tetron daemon.
-curl -Lo tetron https://github.com/ErikAllanKincaid/tetron/releases/latest/download/tetron-linux-x86_64
+curl -Lo tetron https://github.com/tetronos/tetron/releases/latest/download/tetron-linux-x86_64
 chmod +x tetron
 sudo install tetron /usr/local/bin/tetron
 sudo tetron install
 
 # Linux x86_64 -- see the releases page for aarch64 / macOS binaries:
-# https://github.com/ErikAllanKincaid/tetron-webui/releases/latest
-curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
+# https://github.com/tetronos/tetron-webui/releases/latest
+curl -Lo tetron-webui https://github.com/tetronos/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
 chmod +x tetron-webui
 sudo install tetron-webui /usr/local/bin/tetron-webui
 
@@ -62,7 +62,7 @@ tetron-webui install --port 8080
 TETRON_WEBUI_PORT=8080 tetron-webui
 ```
 
-Downstream consumers like [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray)
+Downstream consumers like [`tetron-systray`](https://github.com/tetronos/tetron-systray)
 read the same `TETRON_WEBUI_PORT` env var to discover the dashboard URL.
 If you install both as services, pass the same `--port` to each `install`
 command so both service units carry the variable.
@@ -82,14 +82,14 @@ Only needed if you're changing the code, or a pre-built binary isn't published f
 - Per-network resume/standby, and a manual sync button to wake the DHT/group poller immediately.
 - Invites: mint, list, revoke — minting (including the one auto-minted on network creation) shows the key as a scannable QR code, not just raw text.
 - Coordinator actions: kick a member, grant/list co-coordinators, destroy a network (with the same consensus/force safeguards the CLI has).
-- Add-ons panel: detect and uninstall optional tetron add-ons directly from the dashboard — [`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray) (a menu-bar tray icon) is the first one. Systray installs to root-owned `/usr/local/bin`, same as `tetron`/`tetron-webui`, so this webui (unprivileged) can't fetch and place it for you; clicking Install shows the `contrib/install-tetron-suite.sh` command to run in a terminal instead — the same installer `tetron`/`tetron-webui` are themselves installed with. Uninstall still works directly from the panel (stops the service; the binary itself needs `sudo rm` since it's root-owned). [`tetron-relay`](https://github.com/ErikAllanKincaid/tetron-relay) (self-hosted relay bringup) and [`tetron-testsuite`](https://github.com/ErikAllanKincaid/tetron-testsuite) (VM-based test suite) are also listed, as reference rows linking to their own repos — neither is a single-binary local service, so there is nothing for this webui to install for them. Config Backup is unaffected — it's a plain script, not a service, so it stays one-click: fetches the passphrase-encrypted `tar`+`age` backup script from the tetron repo (`contrib/tetron-backup.sh`) into `~/.local/bin/tetron-backup.sh` with no root needed, and a Details popup shows the backup/restore commands (fetch URL overridable via `TETRON_BACKUP_RAW_URL`, with the webui's own `/addons/tetron-backup.sh` proxy as the manual-fetch fallback).
+- Add-ons panel: detect and uninstall optional tetron add-ons directly from the dashboard — [`tetron-systray`](https://github.com/tetronos/tetron-systray) (a menu-bar tray icon) is the first one. Systray installs to root-owned `/usr/local/bin`, same as `tetron`/`tetron-webui`, so this webui (unprivileged) can't fetch and place it for you; clicking Install shows the `contrib/install-tetron-suite.sh` command to run in a terminal instead — the same installer `tetron`/`tetron-webui` are themselves installed with. Uninstall still works directly from the panel (stops the service; the binary itself needs `sudo rm` since it's root-owned). [`tetron-relay`](https://github.com/tetronos/tetron-relay) (self-hosted relay bringup) and [`tetron-testsuite`](https://github.com/tetronos/tetron-testsuite) (VM-based test suite) are also listed, as reference rows linking to their own repos — neither is a single-binary local service, so there is nothing for this webui to install for them. Config Backup is unaffected — it's a plain script, not a service, so it stays one-click: fetches the passphrase-encrypted `tar`+`age` backup script from the tetron repo (`contrib/tetron-backup.sh`) into `~/.local/bin/tetron-backup.sh` with no root needed, and a Details popup shows the backup/restore commands (fetch URL overridable via `TETRON_BACKUP_RAW_URL`, with the webui's own `/addons/tetron-backup.sh` proxy as the manual-fetch fallback).
 
 ## Upgrading
 
 Re-run the same install steps with a fresh binary:
 
 ```bash
-curl -Lo tetron-webui https://github.com/ErikAllanKincaid/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
+curl -Lo tetron-webui https://github.com/tetronos/tetron-webui/releases/latest/download/tetron-webui-linux-x86_64
 chmod +x tetron-webui
 sudo install tetron-webui /usr/local/bin/tetron-webui   # overwrite the old binary at the same path
 tetron-webui install                                     # re-registers the service and restarts it on the new binary

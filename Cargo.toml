@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.91"
 license = "MPL-2.0"
 description = "Browser dashboard and admin console for tetron, over the daemon IPC socket"
-repository = "https://github.com/ErikAllanKincaid/tetron-webui"
+repository = "https://github.com/tetronos/tetron-webui"
 
 [[bin]]
 name = "tetron-webui"
@@ -17,7 +17,7 @@ path = "src/main.rs"
 # pinned at build time -- tetron-proto's wire types already use
 # #[serde(default)] consistently for exactly this reason. Pinning a tag would
 # only add tag-bump busywork with no real safety benefit.
-tetron-proto = { git = "https://github.com/ErikAllanKincaid/tetron" }
+tetron-proto = { git = "https://github.com/tetronos/tetron" }
 # `install`/`uninstall` subcommands for the per-user service. Same crates/
 # versions tetron's own CLI uses.
 clap = { version = "4", features = ["derive", "env"] }

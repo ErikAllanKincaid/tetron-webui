@@ -10,7 +10,7 @@ real external doc, so you can go verify or copy directly rather than
 taking it on faith.
 
 Companion piece: [`tetron-systray`'s own
-HOWTO](https://github.com/ErikAllanKincaid/tetron-systray/blob/main/docs/HOWTO_Build_A_Systray.md)
+HOWTO](https://github.com/tetronos/tetron-systray/blob/main/docs/HOWTO_Build_A_Systray.md)
 covers the same daemon from a menu-bar/tray angle instead — the IPC client
 pattern and per-user-service deployment sections overlap heavily with this
 one; read whichever matches what you're building, or both if you want the
@@ -38,8 +38,8 @@ and the next begin). Pull that into a **shared library crate** both the
 CLI and the web server depend on, rather than reimplementing wire framing
 in the web server.
 
-- Real example: [`tetron-proto`](https://github.com/ErikAllanKincaid/tetron/tree/main/tetron-proto) — the `IpcMessage` enum, plus
-  [`MsgpackCodec`](https://github.com/ErikAllanKincaid/tetron/blob/main/tetron-proto/src/ipc.rs)
+- Real example: [`tetron-proto`](https://github.com/tetronos/tetron/tree/main/tetron-proto) — the `IpcMessage` enum, plus
+  [`MsgpackCodec`](https://github.com/tetronos/tetron/blob/main/tetron-proto/src/ipc.rs)
   (length-prefixed [msgpack](https://msgpack.org/) via
   [`rmp-serde`](https://docs.rs/rmp-serde/latest/rmp_serde/) +
   [`tokio_util::codec::LengthDelimitedCodec`](https://docs.rs/tokio-util/latest/tokio_util/codec/struct.LengthDelimitedCodec.html)),
@@ -178,7 +178,7 @@ shouldn't need one.
     systemd user manager, only GNOME/KDE reliably do. List **both**
     `WantedBy=default.target graphical-session.target` so it starts
     either way. Found live-testing a sibling project
-    ([`tetron-systray`](https://github.com/ErikAllanKincaid/tetron-systray)) —
+    ([`tetron-systray`](https://github.com/tetronos/tetron-systray)) —
     doesn't apply to this repo's own headless HTTP server, but will bite
     the next GUI-shaped tool that copies this pattern if not carried over.
 
