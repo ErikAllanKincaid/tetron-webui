@@ -1042,7 +1042,7 @@ const ADDON_DETAILS = {
       ${copyBlock("tetron-tui")}
       <h4>Install or update</h4>
       <p class="muted">Part of the tetron install suite (needs sudo, run at a real terminal):</p>
-      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-tui")}
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-tui")}
       <p class="muted">A browser GUI cannot launch a terminal program, so this webui does not start or manage it — it is listed here so you know it exists and how to reach it.</p>`,
   },
   wm: {
@@ -1051,9 +1051,9 @@ const ADDON_DETAILS = {
       <p class="muted">tetron-wm is a desktop for your terminal: floating windows, a taskbar, a launcher, an app store and a mouse, all drawn as text inside the terminal you already have. Your apps keep running when you close the terminal or drop an ssh connection. It has a menubar tray for tetron (peer count, connection quality, and a per-network on/off) when tetron is installed.</p>
       <h4>Install</h4>
       <p class="muted">Prebuilt binary for Linux and macOS (installs to <code>/usr/local/bin</code>, needs sudo, run at a real terminal):</p>
-      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron-wm/main/contrib/install-tetron-wm-suite.sh | bash")}
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/tetronos/tetron-wm/main/contrib/install-tetron-wm-suite.sh | bash")}
       <p class="muted">Into your home instead, no sudo:</p>
-      ${copyBlock("TETRON_WM_BIN_DIR=\"$HOME/.local/bin\" curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron-wm/main/install.sh | sh")}
+      ${copyBlock("TETRON_WM_BIN_DIR=\"$HOME/.local/bin\" curl -fsSL https://raw.githubusercontent.com/tetronos/tetron-wm/main/install.sh | sh")}
       <h4>Run it</h4>
       ${copyBlock("tetron-wm")}
       <p class="muted"><code>Ctrl+Space</code> is the leader key: then <code>l</code> opens the launcher, <code>S</code> the app store, <code>?</code> all shortcuts, and <code>q</code> detaches.</p>
@@ -1066,7 +1066,7 @@ const ADDON_DETAILS = {
     body: () => `
       <p class="muted">Writes your tetron peers' hostnames into <code>/etc/hosts</code> as <code>&lt;hostname&gt;.&lt;network&gt;</code> (e.g. <code>node1.my-net</code>), so peers resolve by name with no DNS server. Reads <code>tetron status</code> over the daemon's existing IPC socket — not a DNS server, opens no port.</p>
       <h4>Install (needs sudo, run at a real terminal)</h4>
-      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-hosts")}
+      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-hosts")}
       <p class="muted">Nothing is synced until you opt a network in:</p>
       ${copyBlock("sudo tetron-hosts config add-network <network>\nsudo tetron-hosts sync")}
       <h4>Manage</h4>

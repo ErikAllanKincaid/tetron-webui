@@ -85,7 +85,7 @@ pub struct AddonSpec {
 /// git dependency). Overridable via `TETRON_BACKUP_RAW_URL`, both for
 /// testing and so the suite can survive the repo moving off GitHub.
 pub const DEFAULT_BACKUP_SCRIPT_URL: &str =
-    "https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/tetron-backup.sh";
+    "https://raw.githubusercontent.com/tetronos/tetron/main/contrib/tetron-backup.sh";
 
 /// Effective upstream URL for the backup script: `TETRON_BACKUP_RAW_URL`
 /// env override if set, else the default. Shared by the /addons/
@@ -100,7 +100,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "systray",
         display_name: "Systray",
         description: "Menu-bar tray icon with per-network status and quick actions.",
-        github_repo: "ErikAllanKincaid/tetron-systray",
+        github_repo: "tetronos/tetron-systray",
         installable: true,
         binary_name: "tetron-systray",
         linux_unit: "tetron-systray",
@@ -114,7 +114,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "backup",
         display_name: "Config Backup",
         description: "Passphrase-encrypted tar+age backup tetron config tree (secret_key, settings.toml, every networks/*.toml).",
-        github_repo: "ErikAllanKincaid/tetron",
+        github_repo: "tetronos/tetron",
         installable: true,
         binary_name: "tetron-backup.sh",
         linux_unit: "",
@@ -128,7 +128,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "sync-receiver",
         display_name: "Sync Receiver",
         description: "Headless home-side rsync receiver for tetron-mobile-sync (Android photo backup) -- modules and mesh-IP allow-list configured live from this webui.",
-        github_repo: "ErikAllanKincaid/tetron-sync-receiver",
+        github_repo: "tetronos/tetron-sync-receiver",
         installable: true,
         binary_name: "tetron-sync-receiver",
         linux_unit: "tetron-sync-receiver",
@@ -142,7 +142,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "messageboard",
         display_name: "Message Board",
         description: "Mesh-hosted message board -- anyone on this tetron network can read and post text and images from their browser. Bound to this network's mesh IP; the mesh itself is the access control.",
-        github_repo: "ErikAllanKincaid/tetron-messageboard",
+        github_repo: "tetronos/tetron-messageboard",
         installable: true,
         binary_name: "tetron-messageboard",
         // No single unit to poll: messageboard registers a templated unit per
@@ -160,7 +160,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "tui",
         display_name: "Terminal UI",
         description: "Interactive full-screen terminal dashboard for tetron -- networks, peers, live status, and admin actions in the shell. Ships with the install suite by default; run `tetron-tui` in a terminal.",
-        github_repo: "ErikAllanKincaid/tetron-tui",
+        github_repo: "tetronos/tetron-tui",
         // Link-only (installable:false): tetron-tui is a root-owned
         // /usr/local/bin binary with no per-user service and no
         // install/uninstall subcommand (place-only in the suite), and a TUI is
@@ -181,7 +181,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "hosts",
         display_name: "Hosts Sync",
         description: "Syncs tetron peer hostnames into /etc/hosts as <hostname>.<network>, so peers resolve by name with no DNS server. A root-run systemd timer -- not a port, not a daemon.",
-        github_repo: "ErikAllanKincaid/tetron-hosts",
+        github_repo: "tetronos/tetron-hosts",
         // Link-only (installable:false): every tetron-hosts action needs root
         // (it rewrites /etc/hosts and installs a system timer), so this
         // unprivileged webui cannot drive it -- the Details popup carries the
@@ -199,7 +199,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "wm",
         display_name: "Terminal Desktop",
         description: "tetron-wm: a desktop for your terminal -- floating windows, a taskbar, a launcher, an app store and a mouse, all drawn as text. Sessions detach and reattach like tmux, and its menubar tray shows tetron status with a per-network on/off. Run `tetron-wm` in a terminal.",
-        github_repo: "ErikAllanKincaid/tetron-wm",
+        github_repo: "tetronos/tetron-wm",
         // Link-only (installable:false): tetron-wm is a foreground terminal
         // program (it draws into the terminal it is started from) with its own
         // installer and its own session server, not a service this
@@ -219,7 +219,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "tor",
         display_name: "Tor",
         description: "Route a network's traffic over Tor instead of relay/direct -- a system Tor daemon, not something this webui installs.",
-        github_repo: "ErikAllanKincaid/tetron",
+        github_repo: "tetronos/tetron",
         installable: false,
         binary_name: "",
         linux_unit: "",
@@ -233,7 +233,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "tetron-veilid",
         display_name: "tetron-veilid",
         description: "Companion daemon for tetron's --veilid transport -- a footgun-nodeid-target build of veilid-server, run as its own system service.",
-        github_repo: "ErikAllanKincaid/tetron-veilid",
+        github_repo: "tetronos/tetron-veilid",
         installable: true,
         binary_name: "tetron-veilid-server",
         linux_unit: "tetron-veilid",
@@ -242,14 +242,14 @@ pub const ADDONS: &[AddonSpec] = &[
         details: true,
         system_unit: true,
         install_script_url: Some(
-            "https://raw.githubusercontent.com/ErikAllanKincaid/tetron-veilid/main/contrib/install-tetron-veilid.sh",
+            "https://raw.githubusercontent.com/tetronos/tetron-veilid/main/contrib/install-tetron-veilid.sh",
         ),
     },
     AddonSpec {
         id: "relay",
         display_name: "Relay",
         description: "Bringup tool that turns a plain Linux server into a self-hosted iroh relay for your fleet's NAT-traversal fallback.",
-        github_repo: "ErikAllanKincaid/tetron-relay",
+        github_repo: "tetronos/tetron-relay",
         installable: false,
         binary_name: "",
         linux_unit: "",
@@ -263,7 +263,7 @@ pub const ADDONS: &[AddonSpec] = &[
         id: "testsuite",
         display_name: "Test Suite",
         description: "VM-based automated test suite that drives tetron through its own CLI to assert on real network behavior.",
-        github_repo: "ErikAllanKincaid/tetron-testsuite",
+        github_repo: "tetronos/tetron-testsuite",
         installable: false,
         binary_name: "",
         linux_unit: "",
@@ -442,7 +442,7 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
         ),
         None => anyhow::bail!(
             "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
-             Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/ErikAllanKincaid/tetron/main/contrib/install-tetron-suite.sh \
+             Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh \
              | bash -s -- --install-{id}",
             spec.display_name
         ),
@@ -581,7 +581,7 @@ mod tests {
             .iter()
             .find(|a| a.id == "wm")
             .expect("tetron-wm row missing from ADDONS");
-        assert_eq!(wm.github_repo, "ErikAllanKincaid/tetron-wm");
+        assert_eq!(wm.github_repo, "tetronos/tetron-wm");
         // A terminal desktop the browser cannot launch: no Install toggle.
         assert!(!wm.installable);
         assert!(wm.details);

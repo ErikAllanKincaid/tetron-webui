@@ -1,4 +1,4 @@
-# Package description for mkdeb (https://github.com/ErikAllanKincaid/tetron-packaging).
+# Package description for mkdeb (https://github.com/tetronos/tetron-packaging).
 # Built in release CI by the build-deb action. Paths are relative to this file.
 #
 # Only the binary: `tetron-webui install`, run as the user, registers the service
@@ -15,7 +15,7 @@ Run `tetron-webui install` as your user to start it as a systemd user
 service (it listens on port 7870 by default)."""
 section = "net"
 license = "MPL-2.0"
-homepage = "https://github.com/ErikAllanKincaid/tetron-webui"
+homepage = "https://github.com/tetronos/tetron-webui"
 # tetron-webui X.Y.z targets tetron core X.Y, so recommend that minor only.
 recommends = ["tetron (>= {minor}), tetron (<< {next_minor})"]
 smoke = "tetron-webui --version"
