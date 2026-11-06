@@ -1042,7 +1042,7 @@ const ADDON_DETAILS = {
       ${copyBlock("tetron-tui")}
       <h4>Install or update</h4>
       <p class="muted">Part of the tetron install suite (needs sudo, run at a real terminal):</p>
-      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-tui")}
+      ${copyBlock("curl -fsSL https://tetronos.github.io/tetron/install.sh | bash -s -- --install-tui")}
       <p class="muted">A browser GUI cannot launch a terminal program, so this webui does not start or manage it — it is listed here so you know it exists and how to reach it.</p>`,
   },
   wm: {
@@ -1066,7 +1066,7 @@ const ADDON_DETAILS = {
     body: () => `
       <p class="muted">Writes your tetron peers' hostnames into <code>/etc/hosts</code> as <code>&lt;hostname&gt;.&lt;network&gt;</code> (e.g. <code>node1.my-net</code>), so peers resolve by name with no DNS server. Reads <code>tetron status</code> over the daemon's existing IPC socket — not a DNS server, opens no port.</p>
       <h4>Install (needs sudo, run at a real terminal)</h4>
-      ${copyBlock("curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh | bash -s -- --install-hosts")}
+      ${copyBlock("curl -fsSL https://tetronos.github.io/tetron/install.sh | bash -s -- --install-hosts")}
       <p class="muted">Nothing is synced until you opt a network in:</p>
       ${copyBlock("sudo tetron-hosts config add-network <network>\nsudo tetron-hosts sync")}
       <h4>Manage</h4>
