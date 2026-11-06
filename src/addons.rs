@@ -442,7 +442,7 @@ pub async fn install(id: &str) -> anyhow::Result<String> {
         ),
         None => anyhow::bail!(
             "{} installs to /usr/local/bin, which needs root -- this webui can't do that for you. \
-             Run this in a terminal: curl -fsSL https://raw.githubusercontent.com/tetronos/tetron/main/contrib/install-tetron-suite.sh \
+             Run this in a terminal: curl -fsSL https://tetronos.github.io/tetron/install.sh \
              | bash -s -- --install-{id}",
             spec.display_name
         ),
